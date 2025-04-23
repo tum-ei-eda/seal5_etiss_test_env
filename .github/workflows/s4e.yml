@@ -116,6 +116,7 @@ jobs:
         sed -i "s/RV32I.core_desc/RVI.core_desc/g" etiss-s4e-mac.core_desc
         sed -i "s/RV32I.core_desc/RVI.core_desc/g" tum_mod.core_desc
         sed -i "s/RISCVEncoding.core_desc/CoreDSL-Instruction-Set-Description\/RISCVEncoding.core_desc/g" tum_mod.core_desc
+        sed -i "s/bool extension_enabled/bool extension_enabled2/g" tum_mod.core_desc
         ls
         cat etiss-s4e-mac.core_desc
         cat tum_mod.core_desc
