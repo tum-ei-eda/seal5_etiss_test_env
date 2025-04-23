@@ -71,7 +71,7 @@ jobs:
 
     - name: Update S4E CDSL ref
       if: github.event.event_type == 's4e-cdsl-event'
-      run:
+      run: |
         git -C riscv-coredsl-extensions checkout ${{ github.event.client_payload.ref }}
         git add riscv-coredsl-extensions
         # workaround for messy include paths
