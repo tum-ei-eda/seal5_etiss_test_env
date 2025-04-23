@@ -1,0 +1,18 @@
+[submodule "riscv-coredsl-extensions"]
+	path = riscv-coredsl-extensions
+	url = https://github.com/tum-ei-eda/riscv-coredsl-extensions.git
+[submodule "etiss_arch_riscv"]
+	path = etiss_arch_riscv
+	url = https://github.com/tum-ei-eda/etiss_arch_riscv.git
+[submodule "M2-ISA-R"]
+	path = M2-ISA-R
+	url = https://github.com/tum-ei-eda/M2-ISA-R.git
+[submodule "etiss"]
+	path = etiss
+	url = https://github.com/tum-ei-eda/etiss.git
+[submodule "etiss_riscv_examples"]
+	path = etiss_riscv_examples
+	url = https://github.com/tum-ei-eda/etiss_riscv_examples.git
+[submodule "etiss_riscv_examples_s4e"]
+	path = etiss_riscv_examples_s4e
+	url = https://github.com/tum-ei-eda/etiss_riscv_examples_s4e.git
