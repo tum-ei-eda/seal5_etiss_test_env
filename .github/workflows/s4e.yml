@@ -1,0 +1,267 @@
+name: S4E FLow
+
+on:
+  repository_dispatch:
+    # types: [cdsl-event, seal5-event, etiss-event, m2isar-event, examples-event]
+    types: [s4e-cdsl-event, seal5-event, etiss-event, m2isar-event, s4e-examples-event]
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUILD_TYPE: Release
+  SEAL5_LLVM_DIR: /home/runner/work/seal5_llvm/
+  SEAL5_BUILD_CONFIG: release
+  RISCV_GCC_NAME: riscv32-unknown-elf
+  ARCH: rv32imc_xs4emac
+  ETISS_ARCH: "RV32IMCXS4EMAC"
+  ETISS_BASE_ARCH: "RV32IMACFD"
+  PROG: "s4emac"  # TODO: support multiple
+  ABI: ilp32
+  UBUNTU_VERSION: "22.04"  # TODO: use matrix:
+  PYTHON_VERSION: "3.10"  # TODO: use matrix:
+  TC_VERSION: "2024.09.03"
+  TC_VARIANT: "rv32gc_ilp32d"
+  TC_NAME: "riscv32-unknown-elf"
+  TC_OS: "ubuntu"
+
+jobs:
+  # clone-setup-run-m2isar:
+  flow:
+    runs-on: ubuntu-${{ env.UBUNTU_VERSION }}
+    steps:
+
+    - name: Set up Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install APT dependencies
+      run: |
+        sudo apt-get update
+        sudo apt -qq install -y python3-pip python3-venv cmake make ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install virtualenv
+
+    - name: Clone Repo and Submodules
+      uses: actions/checkout@v4
+      with:
+         submodules: recursive
+
+    # - name: Update CDSL ref
+    #   if: github.event.event_type == 'cdsl-event'
+    #   run:
+    #     git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
+    #     git add etiss_arch_riscv
+
+    - name: Update S4E CDSL ref
+      if: github.event.event_type == 's4e-cdsl-event'
+      run:
+        git -C riscv-coredsl-extensions checkout ${{ github.event.client_payload.ref }}
+        git add riscv-coredsl-extensions
+
+    - name: Update M2-ISA-R ref
+      if: github.event.event_type == 'm2isar-event'
+      run: |
+        git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
+        git add M2-ISA-R
+
+    - name: Update Seal5 ref
+      if: github.event.event_type == 'seal5-event'
+      run: |
+        git -C seal5 checkout ${{ github.event.client_payload.ref }}
+        git add seal5
+
+    # - name: Update Examples ref
+    #   if: github.event.event_type == 's4e-examples-event'
+    #   run: |
+    #     git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
+    #     git add etiss_riscv_examples
+
+    - name: Update S4E Examples ref
+      if: github.event.event_type == 's4e-examples-event'
+      run: |
+        git -C etiss_riscv_examples_s4e checkout ${{ github.event.client_payload.ref }}
+        git add etiss_riscv_examples_s4e
+
+    - name: Update ETISS ref
+      if: github.event.event_type == 'etiss-event'
+      run: |
+        git -C etiss checkout ${{ github.event.client_payload.ref }}
+        git add etiss
+
+    - name: Get Refs
+      id: refs
+      run: |
+        echo "seal5_ref=$(git -C seal5 rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "s4e_examples_ref=$(git -C etiss_riscv_examples_s4e rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "s4e_cdsl_ref=$(git -C riscv-coredsl-extensions rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+
+    # - name: Download Cached ETISS Binaries
+    #   id: cache-etiss
+    #   uses: actions/cache@v4
+    #   env:
+    #     cache-name: cache-seal5-binaries
+    #   with:
+    #     path: etiss/build/install
+    #     key: etiss-binaries-default-${{ env.UBUNTU_VERSION }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}
+
+    - name: Download Cached ETISS Binaries (S4E)
+      id: cache-etiss
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-seal5-binaries
+      with:
+        path: etiss/build/install
+        key: etiss-binaries-s4e-${{ env.UBUNTU_VERSION }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
+
+    - name: Setup M2-ISA-R
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cd M2-ISA-R
+        virtualenv -p python${{ env.PYTHON_VERISION }} venv
+        source venv/bin/activate
+        pip install -e .
+
+    - name: Run M2-ISA-R
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cd M2-ISA-R
+        source venv/bin/activate
+        python -m m2isar.frontends.coredsl2.parser ../riscv-coredsl-extensions/etiss-s4e-mac.core_desc
+        python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/etiss-s4e-mac.m2isarmodel --separate --static-scalars
+
+    # - name: Upload M2ISAR Model artifacts
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #      name: m2isar-model-files
+    #      path: |
+    #        riscv-coredsl-extensions/gen_output
+
+    - name: Patch ETISS (S4E)
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cp -r riscv-coredsl-extensions/gen_output/* etiss/ArchImpl/  # TODO: generalize!
+        cd etiss
+        cp ArchImpl/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
+        sed -i "s/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_ARCH }}/g" ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
+
+    - name: Build ETISS
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        cmake --build etiss/build -j$(nproc)
+        cmake --install etiss/build
+
+    - name: Download Cached Seal5 Binaries
+      id: cache-seal5
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-seal5-binaries
+      with:
+        path: ${{ env.SEAL5_LLVM_DIR }}
+        key: seal5-binaries-s4e-${{ env.UBUNTU_VERSION }}-${{ env.PYTHON_VERSION }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
+        # restore-keys: |
+        #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
+        #   seal5-binaries-${{ github.event.client_payload.name }}-
+
+    - name: Setup ccache
+      if: ${{ matrix.ccache == '1' }}
+      uses: hendrikmuhs/ccache-action@v1
+      with:
+        max-size: 2G
+        key: ${{ matrix.os }}-seal5-s4e  # TODO
+        variant: sccache
+
+    - name: Setup Seal5
+      if: steps.cache-seal5.outputs.cache-hit != 'true'
+      run: |
+        cd seal5
+        virtualenv -p python${{ env.PYTHON_VERISION }} venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+        pip install -e .
+
+    - name: Run Seal5 S4E Demo
+      if: steps.cache-seal5.outputs.cache-hit != 'true'
+      run: |
+        DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.BUILD_CONFIG }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
+
+    - name: Get current date
+      run: |
+        echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+      id: date
+
+    - name: Download Cached GCC Binaries
+      id: cache-gcc
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-gcc-binaries
+      with:
+        path: gnu/  # TODO: move?
+        key: gcc-binaries-${{ env.TC_OS }}-${{ env.UBUNTU_VERSION }}-${{ env.TC_NAME }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date }}
+        # restore-keys: |
+        #   gcc-binaries-${{ env.UBUNTU_VERSION }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
+
+    - name: Download RISCV-GNU-Toolchain
+      if: steps.cache-gcc.outputs.cache-hit != 'true'
+      run: |
+         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ env.UBUNTU_VERSION }}-${{ env.TC_VARIANT }}.tar.xz
+         mkdir gnu
+         cd gnu
+         tar xvf ../${{ env.TC_VARIANT }}.tar.xz
+         cd ..
+         rm ${{ env.TC_VARIANT }}.tar.xz
+
+    # - name: Build Examples
+    #   run: |
+    #     export PATH=$SEAL5_LLVM_DIR/bin/:$PATH
+    #     # chmod +x $SEAL5_LLVM_DIR/bin/*
+    #     cd etiss_riscv_examples
+    #     cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DBUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+    #     cmake --build build -j$(nproc) -t ${{ env.PROGS }}
+    #     cmake --install build
+
+    - name: Build S4E Examples
+      run: |
+        export PATH=$SEAL5_LLVM_DIR/bin/:$PATH
+        # chmod +x $SEAL5_LLVM_DIR/bin/*
+        cd etiss_riscv_examples_s4e
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DBUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+        cmake --build build -j$(nproc) -t ${{ env.PROGS }}
+        cmake --install build
+
+    # TODO: commit etiss changes? -> Generate patch file?
+
+    # - name: Run Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
+    #     run: |
+    #       # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
+    #       # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
+    #       # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
+    #       etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
+
+    - name: Run S4E Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
+        run: |
+          # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
+          # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
+          # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
+          etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
+
+    - name: Upload ETISS Outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ env.UBUNTU_VERSION }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
+          path: out.txt
