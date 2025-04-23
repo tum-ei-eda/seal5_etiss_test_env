@@ -16,6 +16,7 @@ concurrency:
 env:
   BUILD_TYPE: Release
   SEAL5_LLVM_DIR: /home/runner/work/seal5_llvm/
+  SEAL5_OUT_DIR: /home/runner/work/seal5_out/
   SEAL5_BUILD_CONFIG: release
   RISCV_GCC_NAME: riscv32-unknown-elf
   ARCH: rv32imc_xs4emac
@@ -218,6 +219,7 @@ jobs:
         cache-name: cache-seal5-binaries
       with:
         path: ${{ env.SEAL5_LLVM_DIR }}
+        # path: ${{ env.SEAL5_OUT_DIR }}/seal5_llvm_install
         key: seal5-binaries-s4e-${{ matrix.ubuntu-version }}-${{ matrix.python-version }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
         # restore-keys: |
         #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
@@ -246,7 +248,7 @@ jobs:
         cd seal5/
         source venv/bin/activate
         export PYTHONPATH=$(pwd)
-        DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
+        OUT_DIR=${{ env.SEAL5_OUT_DIR }} DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
 
     - name: Get current date
       run: |
@@ -286,7 +288,8 @@ jobs:
 
     - name: Build S4E Examples
       run: |
-        export PATH=$SEAL5_LLVM_DIR/bin/:$PATH
+        # TODO: only keep install dir of llvm!
+        export PATH=$SEAL5_LLVM_DIR/.seal5/build/${{ env.SEAL5_BUILD_CONFIG }}/bin/:$PATH
         # chmod +x $SEAL5_LLVM_DIR/bin/*
         cd etiss_riscv_examples_s4e
         cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DBUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
