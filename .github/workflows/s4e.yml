@@ -282,8 +282,8 @@ jobs:
     #     export PATH=$SEAL5_LLVM_DIR/bin/:$PATH
     #     # chmod +x $SEAL5_LLVM_DIR/bin/*
     #     cd etiss_riscv_examples
-    #     cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DBUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
-    #     cmake --build build -j$(nproc) -t ${{ env.PROGS }}
+    #     cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+    #     cmake --build build -j$(nproc) -t ${{ env.PROG }}
     #     cmake --install build
 
     - name: Build S4E Examples
@@ -292,8 +292,8 @@ jobs:
         export PATH=$SEAL5_LLVM_DIR/.seal5/build/${{ env.SEAL5_BUILD_CONFIG }}/bin/:$PATH
         # chmod +x $SEAL5_LLVM_DIR/bin/*
         cd etiss_riscv_examples_s4e
-        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DBUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
-        cmake --build build -j$(nproc) -t ${{ env.PROGS }}
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+        cmake --build build -j$(nproc) -t ${{ env.PROG }}
         cmake --install build
 
     # TODO: commit etiss changes? -> Generate patch file?
