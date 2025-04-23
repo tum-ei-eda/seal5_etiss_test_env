@@ -201,42 +201,42 @@ jobs:
         cmake --build etiss/build -j$(nproc)
         cmake --install etiss/build
 
-    # - name: Download Cached Seal5 Binaries
-    #   id: cache-seal5
-    #   uses: actions/cache@v4
-    #   env:
-    #     cache-name: cache-seal5-binaries
-    #   with:
-    #     path: ${{ env.SEAL5_LLVM_DIR }}
-    #     key: seal5-binaries-s4e-${{ matrix.ubuntu-version }}-${{ matrix.python-version }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
-    #     # restore-keys: |
-    #     #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
-    #     #   seal5-binaries-${{ github.event.client_payload.name }}-
+    - name: Download Cached Seal5 Binaries
+      id: cache-seal5
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-seal5-binaries
+      with:
+        path: ${{ env.SEAL5_LLVM_DIR }}
+        key: seal5-binaries-s4e-${{ matrix.ubuntu-version }}-${{ matrix.python-version }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
+        # restore-keys: |
+        #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
+        #   seal5-binaries-${{ github.event.client_payload.name }}-
 
-    # - name: Setup ccache
-    #   if: ${{ matrix.ccache == '1' }}
-    #   uses: hendrikmuhs/ccache-action@v1
-    #   with:
-    #     max-size: 2G
-    #     key: ${{ matrix.os }}-seal5-s4e  # TODO
-    #     variant: sccache
+    - name: Setup ccache
+      if: ${{ matrix.ccache == '1' }}
+      uses: hendrikmuhs/ccache-action@v1
+      with:
+        max-size: 2G
+        key: ${{ matrix.os }}-seal5-s4e  # TODO
+        variant: sccache
 
-    # - name: Setup Seal5
-    #   if: steps.cache-seal5.outputs.cache-hit != 'true'
-    #   run: |
-    #     cd seal5
-    #     virtualenv -p python${{ matrix.python-version }} venv
-    #     source venv/bin/activate
-    #     pip install -r requirements.txt
-    #     pip install -e .
+    - name: Setup Seal5
+      if: steps.cache-seal5.outputs.cache-hit != 'true'
+      run: |
+        cd seal5
+        virtualenv -p python${{ matrix.python-version }} venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+        pip install -e .
 
-    # - name: Run Seal5 S4E Demo
-    #   if: steps.cache-seal5.outputs.cache-hit != 'true'
-    #   run: |
-    #     cd seal5/
-    #     source venv/bin/activate
-    #     export PYTHONPATH=$(pwd)
-    #     DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
+    - name: Run Seal5 S4E Demo
+      if: steps.cache-seal5.outputs.cache-hit != 'true'
+      run: |
+        cd seal5/
+        source venv/bin/activate
+        export PYTHONPATH=$(pwd)
+        DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
 
     # - name: Get current date
     #   run: |
