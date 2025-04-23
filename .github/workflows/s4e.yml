@@ -28,6 +28,7 @@ env:
   TC_VARIANT: "rv32gc_ilp32d"
   TC_NAME: "riscv32-unknown-elf"
   TC_OS: "ubuntu"
+  LLVM_REF: "llvmorg-19.1.7"
 
 jobs:
   # clone-setup-run-m2isar:
@@ -52,6 +53,13 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt -qq install -y python3-pip python3-venv cmake make ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1
+      with:
+        max-size: 2G
+        key: ubuntu-${{ matrix.ubuntu-version }}-s4e-${{ env.SEAL5_BUILD_CONFIG }}
+        variant: sccache
 
     - name: Install Python dependencies
       run: |
@@ -236,7 +244,7 @@ jobs:
         cd seal5/
         source venv/bin/activate
         export PYTHONPATH=$(pwd)
-        DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
+        DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
 
     # - name: Get current date
     #   run: |
