@@ -341,10 +341,11 @@ jobs:
       if: steps.sync_mode.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
       run: |
         git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
-        git fetch --all
-        git stash
+        # git fetch --all
+        git fetch origin
+        # git stash
         git checkout pr_update_${{ github.event.client_payload.from }}
-        git stash pop
+        # git stash pop
 
     # - name: Create PR Branch
     #   if: steps.sync_mode.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
