@@ -19,6 +19,7 @@ env:
   SEAL5_BUILD_CONFIG: release
   RISCV_GCC_NAME: riscv32-unknown-elf
   ARCH: rv32imc_xs4emac
+  ETISS_TOP: "etiss-s4e-mac"
   ETISS_ARCH: "RV32IMCXS4EMAC"
   ETISS_BASE_ARCH: "RV32IMACFD"
   PROG: "s4emac"  # TODO: support multiple
@@ -163,8 +164,8 @@ jobs:
       run: |
         cd M2-ISA-R
         source venv/bin/activate
-        python -m m2isar.frontends.coredsl2.parser ../riscv-coredsl-extensions/etiss-s4e-mac.core_desc
-        python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/etiss-s4e-mac.m2isarmodel --separate --static-scalars
+        python -m m2isar.frontends.coredsl2.parser ../riscv-coredsl-extensions/${{ env.ETISS_TOP }}.core_desc
+        python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
 
     # - name: Upload M2ISAR Model artifacts
     #   uses: actions/upload-artifact@v4
@@ -176,7 +177,7 @@ jobs:
     - name: Patch ETISS (S4E)
       if: steps.cache-etiss.outputs.cache-hit != 'true'
       run: |
-        cp -r riscv-coredsl-extensions/gen_output/* etiss/ArchImpl/  # TODO: generalize!
+        cp -r riscv-coredsl-extensions/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
         cd etiss
         cp ArchImpl/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
         sed -i "s/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_ARCH }}/g" ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
