@@ -361,7 +361,7 @@ jobs:
       uses: ad-m/github-push-action@master
       with:
         github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-        branch: pr_update_${{ github.event.client_payload.from
+        branch: pr_update_${{ github.event.client_payload.from }}
 
     - name: Create Pull Request
       if: steps.sync_mode.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
