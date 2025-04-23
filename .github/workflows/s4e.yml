@@ -234,6 +234,8 @@ jobs:
       if: steps.cache-seal5.outputs.cache-hit != 'true'
       run: |
         cd seal5/
+        source venv/bin/activate
+        export PYTHONPATH=$(pwd)
         DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.BUILD_CONFIG }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
 
     - name: Get current date
