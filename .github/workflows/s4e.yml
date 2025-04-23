@@ -57,6 +57,10 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install virtualenv
+        echo "github.event.event_type=${{ github.event }}"
+        echo "github.event.event_type=${{ github.event.event_type }}"
+        echo "github.event.event_type=${{ github.event.client_payload }}"
+        echo "github.event.event_type=${{ github.event.client_payload.ref }}"
 
     - name: Clone Repo and Submodules
       uses: actions/checkout@v4
