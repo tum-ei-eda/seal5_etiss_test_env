@@ -113,6 +113,7 @@ jobs:
         # workaround for messy include paths
         cd riscv-coredsl-extensions
         ln -s ../etiss_arch_riscv/rv_base CoreDSL-Instruction-Set-Description
+        sed -i "s/RV32I.core_desc/RVI.core_desc/g" etiss-s4e-mac.core_desc
 
     - name: Get Refs
       id: refs
