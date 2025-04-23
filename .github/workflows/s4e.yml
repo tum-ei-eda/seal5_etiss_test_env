@@ -315,13 +315,13 @@ jobs:
         # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
         # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
         # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
-        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
+        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee ../out.txt
 
     - name: Upload ETISS Outputs
       uses: actions/upload-artifact@v4
       with:
         name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
-        path: out.txt
+        path: ../out.txt
 
     - name: Add and count changed files
       id: count_files
