@@ -346,10 +346,10 @@ jobs:
         git checkout pr_update_${{ github.event.client_payload.from }}
         git stash pop
 
-    - name: Create PR Branch
-      if: steps.sync_mode.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
-      run: |
-        git checkout -b pr_update_${{ github.event.client_payload.from }}
+    # - name: Create PR Branch
+    #   if: steps.sync_mode.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
+    #   run: |
+    #     git checkout -b pr_update_${{ github.event.client_payload.from }}
 
     - name: Commit Refs to PR branch
       if: steps.count_files.outputs.NUM_CHANGED != '0'
@@ -357,7 +357,7 @@ jobs:
         git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
 
     - name: Push changes to PR branch
-      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      if: steps.sync_mode.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
       uses: ad-m/github-push-action@master
       with:
         # github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
