@@ -1,4 +1,4 @@
-name: S4E FLow
+name: S4E Flow
 
 on:
   repository_dispatch:
@@ -57,10 +57,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install virtualenv
-        echo "github.event.event_type=${{ github.event }}"
-        echo "github.event.event_type=${{ github.event.event_type }}"
-        echo "github.event.event_type=${{ github.event.client_payload }}"
-        echo "github.event.event_type=${{ github.event.client_payload.ref }}"
+        # echo "github.event.event_type=${{ github.event }}"
+        # echo "github.event.event_type=${{ github.event.event_type }}"
+        # echo "github.event.event_type=${{ github.event.client_payload }}"
+        echo "github.event.client_payload.ref=${{ github.event.client_payload.ref }}"
+        echo "github.event.client_payload.from=${{ github.event.client_payload.from }}"
 
     - name: Clone Repo and Submodules
       uses: actions/checkout@v4
@@ -69,46 +70,53 @@ jobs:
 
     # - name: Update CDSL ref
     #   if: github.event.event_type == 'cdsl-event'
+    #   if: github.event.client_payload.from == 'cdsl'
     #   run:
     #     git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
     #     git -C etiss_arch_riscv submodule update --init --recursive
     #     git add etiss_arch_riscv
 
     - name: Update S4E CDSL ref
-      if: github.event.event_type == 's4e-cdsl-event'
+      # if: github.event.event_type == 's4e-cdsl-event'
+      if: github.event.client_payload.from == 's4e-cdsl'
       run: |
         git -C riscv-coredsl-extensions checkout ${{ github.event.client_payload.ref }}
         git add riscv-coredsl-extensions
 
     - name: Update M2-ISA-R ref
-      if: github.event.event_type == 'm2isar-event'
+      # if: github.event.event_type == 'm2isar-event'
+      if: github.event.client_payload.from == 'm2isar'
       run: |
         git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
         git add M2-ISA-R
 
     - name: Update Seal5 ref
-      if: github.event.event_type == 'seal5-event'
+      # if: github.event.event_type == 'seal5-event'
+      if: github.event.client_payload.from == 'seal5'
       run: |
         git -C seal5 checkout ${{ github.event.client_payload.ref }}
         git -C seal5 submodule update --init --recursive
         git add seal5
 
     # - name: Update Examples ref
-    #   if: github.event.event_type == 's4e-examples-event'
+    #   if: github.event.event_type == 'examples-event'
+    #   if: github.event.client_payload.from == 'examples'
     #   run: |
     #     git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
     #     git -C etiss_riscv_examples submodule update --init --recursive
     #     git add etiss_riscv_examples
 
     - name: Update S4E Examples ref
-      if: github.event.event_type == 's4e-examples-event'
+      # if: github.event.event_type == 's4e-examples-event'
+      if: github.event.client_payload.from == 's4e-examples'
       run: |
         git -C etiss_riscv_examples_s4e checkout ${{ github.event.client_payload.ref }}
         git -C etiss_riscv_examples_s4e submodule update --init --recursive
         git add etiss_riscv_examples_s4e
 
     - name: Update ETISS ref
-      if: github.event.event_type == 'etiss-event'
+      # if: github.event.event_type == 'etiss-event'
+      if: github.event.client_payload.from == 'etiss'
       run: |
         git -C etiss checkout ${{ github.event.client_payload.ref }}
         git add etiss
