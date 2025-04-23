@@ -360,7 +360,7 @@ jobs:
       if: steps.count_files.outputs.NUM_CHANGED != '0'
       uses: ad-m/github-push-action@master
       with:
-        github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+        # github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
         branch: pr_update_${{ github.event.client_payload.from }}
 
     - name: Create Pull Request
@@ -370,4 +370,4 @@ jobs:
         commit-message: "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
         title: "Auto-Update ${{ github.event.client_payload.from }} submodule"
         branch: pr_update_${{ github.event.client_payload.from }}
-        token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+        # token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
