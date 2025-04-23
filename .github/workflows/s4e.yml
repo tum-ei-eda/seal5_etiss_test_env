@@ -74,8 +74,6 @@ jobs:
       run: |
         git -C riscv-coredsl-extensions checkout ${{ github.event.client_payload.ref }}
         git add riscv-coredsl-extensions
-        # workaround for messy include paths
-        ln -s etiss_arch_riscv/rv_base riscv-coredsl-extensions/CoreDSL-Instruction-Set-Description
 
     - name: Update M2-ISA-R ref
       if: github.event.event_type == 'm2isar-event'
@@ -109,6 +107,12 @@ jobs:
       run: |
         git -C etiss checkout ${{ github.event.client_payload.ref }}
         git add etiss
+
+    - name: CDSL Workaround
+      run: |
+        # workaround for messy include paths
+        cd riscv-coredsl-extensions
+        ln -s ../etiss_arch_riscv/rv_base CoreDSL-Instruction-Set-Description
 
     - name: Get Refs
       id: refs
