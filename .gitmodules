@@ -16,3 +16,6 @@
 [submodule "etiss_riscv_examples_s4e"]
 	path = etiss_riscv_examples_s4e
 	url = https://github.com/tum-ei-eda/etiss_riscv_examples_s4e.git
+[submodule "seal5"]
+	path = seal5
+	url = https://github.com/tum-ei-eda/seal5.git
