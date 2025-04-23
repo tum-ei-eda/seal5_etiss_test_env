@@ -318,7 +318,15 @@ jobs:
         name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
         path: out.txt
 
+    - name: Add and count changed files
+      id: count_files
+      working-directory: ./
+      run: |
+        NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
+        echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
+
     - name: Commit Refs to PR branch
+      if: steps.count_files.outputs.NUM_CHANGED != '0'
       run: |
         git config --global user.name "${GITHUB_ACTOR}"
         git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
@@ -333,6 +341,7 @@ jobs:
 
     - name: Create Pull Request
       # if: steps.sync_mode.outputs.SYNC_EXISTS == '0'
+      if: steps.count_files.outputs.NUM_CHANGED != '0'
       uses: peter-evans/create-pull-request@v6
       with:
         commit-message: "Update Submodules (TODO: date & event)"
