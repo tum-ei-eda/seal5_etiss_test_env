@@ -267,12 +267,13 @@ jobs:
     - name: Download RISCV-GNU-Toolchain
       if: steps.cache-gcc.outputs.cache-hit != 'true'
       run: |
-         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz
+         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
          mkdir gnu
          cd gnu
-         tar xvf ../${{ env.TC_VARIANT }}.tar.xz
+         tar xvf ../gnu.tar.xz
          cd ..
-         rm ${{ env.TC_VARIANT }}.tar.xz
+         rm gnu.tar.xz
+         ls gnu
 
     # - name: Build Examples
     #   run: |
