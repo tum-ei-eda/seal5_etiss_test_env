@@ -23,8 +23,6 @@ env:
   ETISS_BASE_ARCH: "RV32IMACFD"
   PROG: "s4emac"  # TODO: support multiple
   ABI: ilp32
-  UBUNTU_VERSION: "22.04"  # TODO: use matrix:
-  PYTHON_VERSION: "3.10"  # TODO: use matrix:
   TC_VERSION: "2024.09.03"
   TC_VARIANT: "rv32gc_ilp32d"
   TC_NAME: "riscv32-unknown-elf"
@@ -33,13 +31,21 @@ env:
 jobs:
   # clone-setup-run-m2isar:
   flow:
-    runs-on: ubuntu-${{ env.UBUNTU_VERSION }}
+    strategy:
+      # fail-fast: false
+      fail-fast: true
+      matrix:
+        ubuntu-version:
+        - 22.04
+        python-version:
+        - "3.10"
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
 
-    - name: Set up Python ${{ env.PYTHON_VERSION }}
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ env.PYTHON_VERSION }}
+        python-version: ${{ matrix.python-version }}
 
     - name: Install APT dependencies
       run: |
@@ -117,7 +123,7 @@ jobs:
     #     cache-name: cache-seal5-binaries
     #   with:
     #     path: etiss/build/install
-    #     key: etiss-binaries-default-${{ env.UBUNTU_VERSION }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}
+    #     key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}
 
     - name: Download Cached ETISS Binaries (S4E)
       id: cache-etiss
@@ -126,13 +132,13 @@ jobs:
         cache-name: cache-seal5-binaries
       with:
         path: etiss/build/install
-        key: etiss-binaries-s4e-${{ env.UBUNTU_VERSION }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
+        key: etiss-binaries-s4e-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
 
     - name: Setup M2-ISA-R
       if: steps.cache-etiss.outputs.cache-hit != 'true'
       run: |
         cd M2-ISA-R
-        virtualenv -p python${{ env.PYTHON_VERISION }} venv
+        virtualenv -p python${{ matrix.python-version }} venv
         source venv/bin/activate
         pip install -e .
 
@@ -173,7 +179,7 @@ jobs:
         cache-name: cache-seal5-binaries
       with:
         path: ${{ env.SEAL5_LLVM_DIR }}
-        key: seal5-binaries-s4e-${{ env.UBUNTU_VERSION }}-${{ env.PYTHON_VERSION }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
+        key: seal5-binaries-s4e-${{ matrix.ubuntu-version }}-${{ matrix.python-version }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
         # restore-keys: |
         #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
         #   seal5-binaries-${{ github.event.client_payload.name }}-
@@ -190,7 +196,7 @@ jobs:
       if: steps.cache-seal5.outputs.cache-hit != 'true'
       run: |
         cd seal5
-        virtualenv -p python${{ env.PYTHON_VERISION }} venv
+        virtualenv -p python${{ matrix.python-version }} venv
         source venv/bin/activate
         pip install -r requirements.txt
         pip install -e .
@@ -212,14 +218,14 @@ jobs:
         cache-name: cache-gcc-binaries
       with:
         path: gnu/  # TODO: move?
-        key: gcc-binaries-${{ env.TC_OS }}-${{ env.UBUNTU_VERSION }}-${{ env.TC_NAME }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date }}
+        key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date }}
         # restore-keys: |
-        #   gcc-binaries-${{ env.UBUNTU_VERSION }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
+        #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
 
     - name: Download RISCV-GNU-Toolchain
       if: steps.cache-gcc.outputs.cache-hit != 'true'
       run: |
-         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ env.UBUNTU_VERSION }}-${{ env.TC_VARIANT }}.tar.xz
+         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz
          mkdir gnu
          cd gnu
          tar xvf ../${{ env.TC_VARIANT }}.tar.xz
@@ -263,5 +269,5 @@ jobs:
     - name: Upload ETISS Outputs
       uses: actions/upload-artifact@v4
       with:
-        name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ env.UBUNTU_VERSION }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
+        name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
         path: out.txt
