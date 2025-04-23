@@ -66,6 +66,7 @@ jobs:
     #   if: github.event.event_type == 'cdsl-event'
     #   run:
     #     git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
+    #     git -C etiss_arch_riscv submodule update --init --recursive
     #     git add etiss_arch_riscv
 
     - name: Update S4E CDSL ref
@@ -73,6 +74,8 @@ jobs:
       run:
         git -C riscv-coredsl-extensions checkout ${{ github.event.client_payload.ref }}
         git add riscv-coredsl-extensions
+        # workaround for messy include paths
+        ln -s etiss_arch_riscv/rv_base riscv-coredsl-extensions/CoreDSL-Instruction-Set-Description
 
     - name: Update M2-ISA-R ref
       if: github.event.event_type == 'm2isar-event'
@@ -84,18 +87,21 @@ jobs:
       if: github.event.event_type == 'seal5-event'
       run: |
         git -C seal5 checkout ${{ github.event.client_payload.ref }}
+        git -C seal5 submodule update --init --recursive
         git add seal5
 
     # - name: Update Examples ref
     #   if: github.event.event_type == 's4e-examples-event'
     #   run: |
     #     git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
+    #     git -C etiss_riscv_examples submodule update --init --recursive
     #     git add etiss_riscv_examples
 
     - name: Update S4E Examples ref
       if: github.event.event_type == 's4e-examples-event'
       run: |
         git -C etiss_riscv_examples_s4e checkout ${{ github.event.client_payload.ref }}
+        git -C etiss_riscv_examples_s4e submodule update --init --recursive
         git add etiss_riscv_examples_s4e
 
     - name: Update ETISS ref
@@ -114,7 +120,6 @@ jobs:
         echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "s4e_cdsl_ref=$(git -C riscv-coredsl-extensions rev-parse HEAD)" >> $GITHUB_OUTPUT
-
 
     # - name: Download Cached ETISS Binaries
     #   id: cache-etiss
@@ -271,3 +276,25 @@ jobs:
       with:
         name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
         path: out.txt
+
+    - name: Commit Refs to PR branch
+      run: |
+        git config --global user.name "${GITHUB_ACTOR}"
+        git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+        git commit -m "Update Submodules (Event: ${{ github.event.event_type }})"
+        git checkout -b pr_branch_name
+
+    # - name: Push changes to PR branch
+    #   uses: ad-m/github-push-action@master
+    #   with:
+    #     github_token: ${{ secrets.CMSIS_SYNC_KEY }}  # TODO: key
+    #     branch: pr_branch_name
+
+    - name: Create Pull Request
+      # if: steps.sync_mode.outputs.SYNC_EXISTS == '0'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        commit-message: "Update Submodules (TODO: date & event)"
+        title: TODO
+        branch: pr_branch_name  # TODO: generate_branch_name
+        # token: ${{ secrets.CMSIS_SYNC_KEY }}  # TODO: key
