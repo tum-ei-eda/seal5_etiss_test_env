@@ -248,90 +248,90 @@ jobs:
         export PYTHONPATH=$(pwd)
         DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
 
-    # - name: Get current date
-    #   run: |
-    #     echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-    #   id: date
+    - name: Get current date
+      run: |
+        echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+      id: date
 
-    # - name: Download Cached GCC Binaries
-    #   id: cache-gcc
-    #   uses: actions/cache@v4
-    #   env:
-    #     cache-name: cache-gcc-binaries
-    #   with:
-    #     path: gnu/  # TODO: move?
-    #     key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date }}
-    #     # restore-keys: |
-    #     #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
+    - name: Download Cached GCC Binaries
+      id: cache-gcc
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-gcc-binaries
+      with:
+        path: gnu/  # TODO: move?
+        key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date }}
+        # restore-keys: |
+        #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
 
-    # - name: Download RISCV-GNU-Toolchain
-    #   if: steps.cache-gcc.outputs.cache-hit != 'true'
-    #   run: |
-    #      wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz
-    #      mkdir gnu
-    #      cd gnu
-    #      tar xvf ../${{ env.TC_VARIANT }}.tar.xz
-    #      cd ..
-    #      rm ${{ env.TC_VARIANT }}.tar.xz
+    - name: Download RISCV-GNU-Toolchain
+      if: steps.cache-gcc.outputs.cache-hit != 'true'
+      run: |
+         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz
+         mkdir gnu
+         cd gnu
+         tar xvf ../${{ env.TC_VARIANT }}.tar.xz
+         cd ..
+         rm ${{ env.TC_VARIANT }}.tar.xz
 
-    # # - name: Build Examples
-    # #   run: |
-    # #     export PATH=$SEAL5_LLVM_DIR/bin/:$PATH
-    # #     # chmod +x $SEAL5_LLVM_DIR/bin/*
-    # #     cd etiss_riscv_examples
-    # #     cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DBUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
-    # #     cmake --build build -j$(nproc) -t ${{ env.PROGS }}
-    # #     cmake --install build
-
-    # - name: Build S4E Examples
+    # - name: Build Examples
     #   run: |
     #     export PATH=$SEAL5_LLVM_DIR/bin/:$PATH
     #     # chmod +x $SEAL5_LLVM_DIR/bin/*
-    #     cd etiss_riscv_examples_s4e
+    #     cd etiss_riscv_examples
     #     cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DBUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
     #     cmake --build build -j$(nproc) -t ${{ env.PROGS }}
     #     cmake --install build
 
-    # # TODO: commit etiss changes? -> Generate patch file?
+    - name: Build S4E Examples
+      run: |
+        export PATH=$SEAL5_LLVM_DIR/bin/:$PATH
+        # chmod +x $SEAL5_LLVM_DIR/bin/*
+        cd etiss_riscv_examples_s4e
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DBUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+        cmake --build build -j$(nproc) -t ${{ env.PROGS }}
+        cmake --install build
 
-    # # - name: Run Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
-    # #     run: |
-    # #       # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
-    # #       # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
-    # #       # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
-    # #       etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
+    # TODO: commit etiss changes? -> Generate patch file?
 
-    # - name: Run S4E Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
-    #   run: |
-    #     # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
-    #     # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
-    #     # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
-    #     etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
+    # - name: Run Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
+    #     run: |
+    #       # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
+    #       # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
+    #       # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
+    #       etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
 
-    # - name: Upload ETISS Outputs
-    #   uses: actions/upload-artifact@v4
+    - name: Run S4E Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
+      run: |
+        # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
+        # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
+        # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
+        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
+
+    - name: Upload ETISS Outputs
+      uses: actions/upload-artifact@v4
+      with:
+        name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
+        path: out.txt
+
+    - name: Commit Refs to PR branch
+      run: |
+        git config --global user.name "${GITHUB_ACTOR}"
+        git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+        git commit -m "Update Submodules (Event: ${{ github.event.event_type }})"
+        git checkout -b pr_branch_name
+
+    # - name: Push changes to PR branch
+    #   uses: ad-m/github-push-action@master
     #   with:
-    #     name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
-    #     path: out.txt
+    #     github_token: ${{ secrets.CMSIS_SYNC_KEY }}  # TODO: key
+    #     branch: pr_branch_name
 
-    # - name: Commit Refs to PR branch
-    #   run: |
-    #     git config --global user.name "${GITHUB_ACTOR}"
-    #     git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-    #     git commit -m "Update Submodules (Event: ${{ github.event.event_type }})"
-    #     git checkout -b pr_branch_name
-
-    # # - name: Push changes to PR branch
-    # #   uses: ad-m/github-push-action@master
-    # #   with:
-    # #     github_token: ${{ secrets.CMSIS_SYNC_KEY }}  # TODO: key
-    # #     branch: pr_branch_name
-
-    # - name: Create Pull Request
-    #   # if: steps.sync_mode.outputs.SYNC_EXISTS == '0'
-    #   uses: peter-evans/create-pull-request@v6
-    #   with:
-    #     commit-message: "Update Submodules (TODO: date & event)"
-    #     title: TODO
-    #     branch: pr_branch_name  # TODO: generate_branch_name
-    #     # token: ${{ secrets.CMSIS_SYNC_KEY }}  # TODO: key
+    - name: Create Pull Request
+      # if: steps.sync_mode.outputs.SYNC_EXISTS == '0'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        commit-message: "Update Submodules (TODO: date & event)"
+        title: TODO
+        branch: pr_branch_name  # TODO: generate_branch_name
+        # token: ${{ secrets.CMSIS_SYNC_KEY }}  # TODO: key
