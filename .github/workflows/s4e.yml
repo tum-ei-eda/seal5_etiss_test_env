@@ -135,6 +135,41 @@ jobs:
         git -C etiss checkout ${{ github.event.client_payload.ref }}
         git add etiss
 
+    - name: Add and count changed files
+      id: count_files
+      working-directory: ./
+      run: |
+        NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
+        echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
+
+    - name: Check if PR Branch already exists
+      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      id: check_branch
+      run: |
+        CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
+        echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
+
+    - name: Switch to PR Branch
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
+      run: |
+        git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
+        # git fetch --all
+        git fetch origin
+        # git stash
+        git checkout pr_update_${{ github.event.client_payload.from }}
+        # git stash pop
+
+    # - name: Create PR Branch
+    #   if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
+    #   run: |
+    #     git checkout -b pr_update_${{ github.event.client_payload.from }}
+
+    - name: Commit Refs to PR branch
+      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      run: |
+        git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
+
+
     - name: CDSL Workaround
       run: |
         # workaround for messy include paths
@@ -315,57 +350,23 @@ jobs:
         # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
         # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
         # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
-        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee ../out.txt
+        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
 
     - name: Upload ETISS Outputs
       uses: actions/upload-artifact@v4
       with:
         name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
-        path: ../out.txt
-
-    - name: Add and count changed files
-      id: count_files
-      working-directory: ./
-      run: |
-        NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
-        echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
-
-    - name: Check if PR Branch already exists
-      if: steps.count_files.outputs.NUM_CHANGED != '0'
-      id: sync_mode
-      run: |
-        CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
-        echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
-
-    - name: Switch to PR Branch
-      if: steps.sync_mode.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
-      run: |
-        git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
-        # git fetch --all
-        git fetch origin
-        # git stash
-        git checkout pr_update_${{ github.event.client_payload.from }}
-        # git stash pop
-
-    # - name: Create PR Branch
-    #   if: steps.sync_mode.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
-    #   run: |
-    #     git checkout -b pr_update_${{ github.event.client_payload.from }}
-
-    - name: Commit Refs to PR branch
-      if: steps.count_files.outputs.NUM_CHANGED != '0'
-      run: |
-        git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
+        path: out.txt
 
     - name: Push changes to PR branch
-      if: steps.sync_mode.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
       uses: ad-m/github-push-action@master
       with:
         # github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
         branch: pr_update_${{ github.event.client_payload.from }}
 
     - name: Create Pull Request
-      if: steps.sync_mode.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
       uses: peter-evans/create-pull-request@v6
       with:
         commit-message: "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
