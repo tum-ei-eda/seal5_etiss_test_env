@@ -32,7 +32,6 @@ env:
   LLVM_REF: "llvmorg-19.1.7"
 
 jobs:
-  # clone-setup-run-m2isar:
   flow:
     strategy:
       # fail-fast: false
@@ -199,20 +198,11 @@ jobs:
         echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "s4e_cdsl_ref=$(git -C riscv-coredsl-extensions rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-    # - name: Download Cached ETISS Binaries
-    #   id: cache-etiss
-    #   uses: actions/cache@v4
-    #   env:
-    #     cache-name: cache-seal5-binaries
-    #   with:
-    #     path: etiss/build/install
-    #     key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}
-
     - name: Download Cached ETISS Binaries (S4E)
       id: cache-etiss
       uses: actions/cache@v4
       env:
-        cache-name: cache-seal5-binaries
+        cache-name: cache-etiss-binaries
       with:
         path: etiss/build/install
         key: etiss-binaries-s4e-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
@@ -267,14 +257,6 @@ jobs:
         # restore-keys: |
         #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
         #   seal5-binaries-${{ github.event.client_payload.name }}-
-
-    - name: Setup ccache
-      if: ${{ matrix.ccache == '1' }}
-      uses: hendrikmuhs/ccache-action@v1
-      with:
-        max-size: 2G
-        key: ${{ matrix.os }}-seal5-s4e  # TODO
-        variant: sccache
 
     - name: Setup Seal5
       if: steps.cache-seal5.outputs.cache-hit != 'true'

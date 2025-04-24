@@ -1,0 +1,241 @@
+name: Default (RV32/RV64) Flow
+
+on:
+  repository_dispatch:
+    types: [cdsl-event, etiss-event, m2isar-event, examples-event]
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  BUILD_TYPE: Release
+  PROG: "hello_world"  # TODO: support multiple
+  TC_VERSION: "2024.09.03"
+  TC_VARIANT: "multilib_default"
+  TC_NAME: "riscv64-unknown-elf"
+  TC_OS: "ubuntu"
+  LLVM_REF: "llvmorg-19.1.7"
+  ETISS_TOP: "top"
+
+jobs:
+  flow:
+    strategy:
+      # fail-fast: false
+      fail-fast: true
+      matrix:
+        ubuntu-version:
+        - 22.04
+        python-version:
+        - "3.10"
+        config:
+        - {RISCV_GCC_NAME: riscv32-unknown-elf, ARCH: rv32imafdc, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32d}
+        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV64IMACFD", ABI: lp64d}
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install APT dependencies
+      run: |
+        sudo apt-get update
+        sudo apt -qq install -y python3-pip python3-venv cmake make ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "${GITHUB_ACTOR}"
+        git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install virtualenv
+
+    - name: Clone Repo and Submodules
+      uses: actions/checkout@v4
+      with:
+         submodules: recursive
+
+    - name: Update CDSL ref
+      if: github.event.client_payload.from == 'cdsl'
+      run:
+        git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
+        git -C etiss_arch_riscv submodule update --init --recursive
+        git add etiss_arch_riscv
+
+    - name: Update M2-ISA-R ref
+      # if: github.event.event_type == 'm2isar-event'
+      if: github.event.client_payload.from == 'm2isar'
+      run: |
+        git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
+        git add M2-ISA-R
+
+    - name: Update Examples ref
+      if: github.event.client_payload.from == 'examples'
+      run: |
+        git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
+        git -C etiss_riscv_examples submodule update --init --recursive
+        git add etiss_riscv_examples
+
+    - name: Update ETISS ref
+      # if: github.event.event_type == 'etiss-event'
+      if: github.event.client_payload.from == 'etiss'
+      run: |
+        git -C etiss checkout ${{ github.event.client_payload.ref }}
+        git add etiss
+
+    - name: Add and count changed files
+      id: count_files
+      working-directory: ./
+      run: |
+        NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
+        echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
+
+    - name: Check if PR Branch already exists
+      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      id: check_branch
+      run: |
+        CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
+        echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
+
+    - name: Switch to PR Branch
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
+      run: |
+        git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
+        # git fetch --all
+        git fetch origin
+        # git stash
+        # git checkout pr_update_${{ github.event.client_payload.from }}
+        # git checkout main  # TODO: do not hardcode
+        git branch -d -r origin/pr_update_${{ github.event.client_payload.from }}
+        git checkout -b pr_update_${{ github.event.client_payload.from }}
+        # git stash pop
+
+    # - name: Create PR Branch
+    #   if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
+    #   run: |
+    #     git checkout -b pr_update_${{ github.event.client_payload.from }}
+
+    - name: Commit Refs to PR branch
+      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      run: |
+        git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
+
+    - name: Get Refs
+      id: refs
+      run: |
+        echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+    - name: Download Cached ETISS Binaries
+      id: cache-etiss
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-etiss-binaries
+      with:
+        path: etiss/build/install
+        key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}
+
+    - name: Setup M2-ISA-R
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cd M2-ISA-R
+        virtualenv -p python${{ matrix.python-version }} venv
+        source venv/bin/activate
+        pip install -e .
+
+    - name: Run M2-ISA-R
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cd M2-ISA-R
+        source venv/bin/activate
+        python -m m2isar.frontends.coredsl2.parser ../riscv-coredsl-extensions/${{ env.ETISS_TOP }}.core_desc
+        python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
+
+    # - name: Upload M2ISAR Model artifacts
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #      name: m2isar-model-files
+    #      path: |
+    #        riscv-coredsl-extensions/gen_output
+
+    - name: Patch ETISS
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
+        cd etiss
+        cp ArchImpl/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+        sed -i "s/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_ARCH }}/g" ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+
+    - name: Build ETISS
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        cmake --build etiss/build -j$(nproc)
+        cmake --install etiss/build
+
+    - name: Download Cached GCC Binaries
+      id: cache-gcc
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-gcc-binaries
+      with:
+        path: gnu/  # TODO: move?
+        key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date }}
+        # restore-keys: |
+        #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
+
+    - name: Download RISCV-GNU-Toolchain
+      if: steps.cache-gcc.outputs.cache-hit != 'true'
+      run: |
+         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
+         mkdir gnu
+         cd gnu
+         tar xvf ../gnu.tar.xz
+         cd ..
+         rm gnu.tar.xz
+         ls gnu
+
+    - name: Build Examples
+      run: |
+        # TODO: also run GCC here!
+        cd etiss_riscv_examples
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+        cmake --build build -j$(nproc) -t ${{ env.PROG }}
+        cmake --install build
+
+    # TODO: commit etiss changes? -> Generate patch file?
+
+    - name: Run Example ${{ env.PROG }} on ${{ matrix.config.ETISS_ARCH }}
+      run: |
+        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/install/ini/${{ matrix.config.PROG }}.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee out.txt
+
+    - name: Upload ETISS Outputs
+      uses: actions/upload-artifact@v4
+      with:
+        name: etiss-output-default-${{ env.PROG }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}
+        path: out.txt
+
+    - name: Push changes to PR branch
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
+      uses: ad-m/github-push-action@master
+      with:
+        branch: pr_update_${{ github.event.client_payload.from }}
+        force: true
+
+    - name: Create Pull Request
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        commit-message: "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
+        title: "Auto-Update ${{ github.event.client_payload.from }} submodule"
+        branch: pr_update_${{ github.event.client_payload.from }}
