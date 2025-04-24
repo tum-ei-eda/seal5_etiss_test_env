@@ -156,7 +156,8 @@ jobs:
         # git fetch --all
         git fetch origin
         # git stash
-        git checkout pr_update_${{ github.event.client_payload.from }}
+        git branch -d pr_update_${{ github.event.client_payload.from }}
+        git checkout -b pr_update_${{ github.event.client_payload.from }}
         # git stash pop
 
     # - name: Create PR Branch
@@ -364,6 +365,7 @@ jobs:
       with:
         # github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
         branch: pr_update_${{ github.event.client_payload.from }}
+        force: true
 
     - name: Create Pull Request
       if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
