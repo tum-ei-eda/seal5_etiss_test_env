@@ -156,9 +156,9 @@ jobs:
         # git fetch --all
         git fetch origin
         # git stash
-        git checkout pr_update_${{ github.event.client_payload.from }}
-        git checkout main  # TODO: do not hardcode
-        git branch -d pr_update_${{ github.event.client_payload.from }}
+        # git checkout pr_update_${{ github.event.client_payload.from }}
+        # git checkout main  # TODO: do not hardcode
+        git branch -d -r origin/pr_update_${{ github.event.client_payload.from }}
         git checkout -b pr_update_${{ github.event.client_payload.from }}
         # git stash pop
 
