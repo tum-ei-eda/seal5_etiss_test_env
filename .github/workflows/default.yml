@@ -158,7 +158,8 @@ jobs:
       run: |
         cd M2-ISA-R
         source venv/bin/activate
-        python -m m2isar.frontends.coredsl2.parser ../riscv-coredsl-extensions/${{ env.ETISS_TOP }}.core_desc
+        # TODO: generalize
+        python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc
         python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
 
     # - name: Upload M2ISAR Model artifacts
@@ -217,7 +218,9 @@ jobs:
 
     - name: Run Example ${{ env.PROG }} on ${{ matrix.config.ETISS_ARCH }}
       run: |
+        set -o pipefail
         etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/install/ini/${{ matrix.config.PROG }}.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee out.txt
+        set +o pipefail
 
     - name: Upload ETISS Outputs
       uses: actions/upload-artifact@v4
