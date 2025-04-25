@@ -160,7 +160,7 @@ jobs:
         source venv/bin/activate
         # TODO: generalize
         python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc
-        python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
+        python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
 
     # - name: Upload M2ISAR Model artifacts
     #   uses: actions/upload-artifact@v4
