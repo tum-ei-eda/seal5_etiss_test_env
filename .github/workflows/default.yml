@@ -65,7 +65,7 @@ jobs:
 
     - name: Update CDSL ref
       if: github.event.client_payload.from == 'cdsl'
-      run:
+      run: |
         git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
         git -C etiss_arch_riscv submodule update --init --recursive
         git add etiss_arch_riscv
