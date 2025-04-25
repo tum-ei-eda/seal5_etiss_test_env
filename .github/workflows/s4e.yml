@@ -26,7 +26,7 @@ env:
   PROG: "s4emac"  # TODO: support multiple
   ABI: ilp32
   TC_VERSION: "2024.09.03"
-  TC_VARIANT: "rv32im_zicsr_zifeincei_ilp32"
+  TC_VARIANT: "rv32im_zicsr_zifencei_ilp32"
   TC_NAME: "riscv32-unknown-elf"
   TC_OS: "ubuntu"
   LLVM_REF: "llvmorg-19.1.7"
