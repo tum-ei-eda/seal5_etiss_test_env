@@ -230,7 +230,7 @@ jobs:
         # TODO: also run GCC here!
         cd etiss_riscv_examples
         cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv64gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }}
-        for prog in "$(echo ${{ env.PROGS }} | sed 's/,/ /')"; do
+        for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
             echo "prog=$prog"
             cmake --build build -j$(nproc) -t $prog
         done
@@ -242,7 +242,7 @@ jobs:
         # TODO: also run GCC here!
         cd etiss_riscv_examples
         cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv64gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }}
-        for prog in "$(echo ${{ env.PROGS }} | sed 's/,/ /')"; do
+        for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
             echo "prog=$prog"
             cmake --build build -j$(nproc) -t $prog
         done
@@ -253,7 +253,7 @@ jobs:
     - name: Run Examples on ${{ matrix.config.ETISS_ARCH }}
       run: |
         set -o pipefail
-        for prog in "$(echo ${{ env.PROGS }} | sed 's/,/ /')"; do
+        for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
             echo "--- Program: $prog ---" | tee -a out.txt
             etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee -a out.txt
         done
