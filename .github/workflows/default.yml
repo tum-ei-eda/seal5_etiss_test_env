@@ -174,8 +174,10 @@ jobs:
       run: |
         cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
         cd etiss
-        cp ArchImpl/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
-        sed -i "s/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_ARCH }}/g" ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+        # cp ArchImpl/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+        # sed -i "s/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_ARCH }}/g" ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+        # TODO: if ETISS_ARCH == ETISS_BASE_ARCH
+        git restore ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
 
     - name: Build ETISS
       if: steps.cache-etiss.outputs.cache-hit != 'true'
