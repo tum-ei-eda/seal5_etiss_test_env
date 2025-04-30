@@ -17,7 +17,7 @@ env:
   PROG: "hello_world"  # TODO: support multiple
   TC_VERSION: "2024.09.03"
   TC_VARIANT: "multilib_default"
-  TC_NAME: "riscv64-unknown-elf"
+  TC_NAME: "riscv64-unknown-elf"  # redundant
   TC_OS: "ubuntu"
   LLVM_REF: "llvmorg-19.1.7"
   ETISS_TOP: "top"
@@ -36,7 +36,7 @@ jobs:
         - gcc
         # - llvm
         config:
-        - {RISCV_GCC_NAME: riscv32-unknown-elf, ARCH: rv32imafdc, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32d, XLEN: 32}
+        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imafdc, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32d, XLEN: 32}
         - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV64IMACFD", ABI: lp64d, XLEN: 64}
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
