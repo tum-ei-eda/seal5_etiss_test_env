@@ -6,8 +6,24 @@ on:
     types: [s4e-cdsl-event, seal5-event, etiss-event, m2isar-event, s4e-examples-event]
   push:
     branches: [ "main" ]
+    paths:
+      - .github/workflows/s4e.yml
+      - etiss
+      - etiss_riscv_examples_s4e
+      - M2-ISA-R
+      - seal5
+      - riscv-coredsl-extensions
+      - etiss_arch_riscv
   pull_request:
     branches: [ "main" ]
+    paths:
+      - .github/workflows/s4e.yml
+      - etiss
+      - etiss_riscv_examples_s4e
+      - M2-ISA-R
+      - seal5
+      - riscv-coredsl-extensions
+      - etiss_arch_riscv
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
