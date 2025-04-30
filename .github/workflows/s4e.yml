@@ -33,7 +33,7 @@ concurrency:
 
 env:
   BUILD_TYPE: Release
-  SEAL5_LLVM_DIR: /home/runner/work/seal5_llvm/
+  SEAL5_LLVM_DIR: /home/runner/work/seal5_llvm  # TO TRAILING /
   SEAL5_OUT_DIR: /home/runner/work/seal5_out/
   SEAL5_BUILD_CONFIG: release
   RISCV_GCC_NAME: riscv32-unknown-elf
