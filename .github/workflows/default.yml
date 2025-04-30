@@ -20,6 +20,7 @@ env:
   TC_NAME: "riscv64-unknown-elf"
   TC_OS: "ubuntu"
   LLVM_REF: "llvmorg-19.1.7"
+  TOOLCHAIN: "gcc"
   ETISS_TOP: "top"
 
 jobs:
@@ -33,8 +34,8 @@ jobs:
         python-version:
         - "3.10"
         config:
-        - {RISCV_GCC_NAME: riscv32-unknown-elf, ARCH: rv32imafdc, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32d}
-        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV64IMACFD", ABI: lp64d}
+        - {RISCV_GCC_NAME: riscv32-unknown-elf, ARCH: rv32imafdc, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32d, XLEN: 32}
+        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV64IMACFD", ABI: lp64d, XLEN: 64}
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
 
@@ -208,11 +209,21 @@ jobs:
          rm gnu.tar.xz
          ls gnu
 
-    - name: Build Examples
+    - name: Build Examples (LLVM)
+      if: env.TOOLCHAIN == "llvm"
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
-        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv64gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+        cmake --build build -j$(nproc) -t ${{ env.PROG }}
+        cmake --install build
+
+    - name: Build Examples (GCC)
+      if: env.TOOLCHAIN == "gcc"
+      run: |
+        # TODO: also run GCC here!
+        cd etiss_riscv_examples
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv64gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
         cmake --build build -j$(nproc) -t ${{ env.PROG }}
         cmake --install build
 
