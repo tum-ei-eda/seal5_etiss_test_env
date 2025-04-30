@@ -336,7 +336,7 @@ jobs:
         # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
         # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
         set -o pipefail
-        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ matrix.config.PROG }}.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee out.txt
+        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
         set +o pipefail
 
     - name: Upload ETISS Outputs
