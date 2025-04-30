@@ -1,6 +1,7 @@
 name: S4E Flow
 
 on:
+  workflow_dispatch: {}
   repository_dispatch:
     # types: [cdsl-event, seal5-event, etiss-event, m2isar-event, examples-event]
     types: [s4e-cdsl-event, seal5-event, etiss-event, m2isar-event, s4e-examples-event]

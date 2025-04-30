@@ -1,6 +1,7 @@
 name: Default (RV32/RV64) Flow
 
 on:
+  workflow_dispatch: {}
   repository_dispatch:
     types: [cdsl-event, etiss-event, m2isar-event, examples-event]
   push:
@@ -38,8 +39,8 @@ env:
 jobs:
   flow:
     strategy:
-      # fail-fast: false
-      fail-fast: true
+      fail-fast: false
+      # fail-fast: true
       matrix:
         ubuntu-version:
         - 22.04
@@ -257,11 +258,30 @@ jobs:
         set -o pipefail
         for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
             echo "--- Program: $prog ---" | tee -a out.txt
-            etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee -a out.txt
+            timeout 1m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee -a out.txt
         done
         set +o pipefail
 
+
+    - name: Add Summary (Success)
+      if: success()
+      run: |
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "OK" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Add Summary (Failure)
+      if: failure()
+      run: |
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING" >> $GITHUB_STEP_SUMMARY
+        echo "ETISS Sim Outputs:" >> $GITHUB_STEP_SUMMARY
+        cat out.txt
+        echo "- - -" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
     - name: Upload ETISS Outputs
+      if: success() || failure()
       uses: actions/upload-artifact@v4
       with:
         name: etiss-output-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}
