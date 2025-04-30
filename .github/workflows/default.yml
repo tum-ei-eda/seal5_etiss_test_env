@@ -26,13 +26,14 @@ concurrency:
 
 env:
   BUILD_TYPE: Release
-  PROG: "hello_world"  # TODO: support multiple
+  # PROG: "hello_world"  # TODO: support multiple
   TC_VERSION: "2024.09.03"
   TC_VARIANT: "multilib_default"
   TC_NAME: "riscv64-unknown-elf"  # redundant
   TC_OS: "ubuntu"
   LLVM_REF: "llvmorg-19.1.7"
   ETISS_TOP: "top"
+  PROGS: "hello_world,dhry"
 
 jobs:
   flow:
@@ -229,7 +230,10 @@ jobs:
         # TODO: also run GCC here!
         cd etiss_riscv_examples
         cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv64gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }}
-        cmake --build build -j$(nproc) -t ${{ env.PROG }}
+        for prog in "$(echo ${{ env.PROGS }} | sed 's/,/ /')"; do
+            echo "prog=$prog"
+            cmake --build build -j$(nproc) -t $prog
+        done
         cmake --install build
 
     - name: Build Examples (GCC)
@@ -238,22 +242,31 @@ jobs:
         # TODO: also run GCC here!
         cd etiss_riscv_examples
         cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv64gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }}
-        cmake --build build -j$(nproc) -t ${{ env.PROG }}
+        for prog in "$(echo ${{ env.PROGS }} | sed 's/,/ /')"; do
+            echo "prog=$prog"
+            cmake --build build -j$(nproc) -t $prog
+        done
         cmake --install build
 
     # TODO: commit etiss changes? -> Generate patch file?
 
-    - name: Run Example ${{ env.PROG }} on ${{ matrix.config.ETISS_ARCH }}
+    - name: Run Examples on ${{ matrix.config.ETISS_ARCH }}
       run: |
         set -o pipefail
-        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/${{ matrix.config.PROG }}.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee out.txt
+        for prog in "$(echo ${{ env.PROGS }} | sed 's/,/ /')"; do
+            echo "--- Program: $prog ---" | tee -a out.txt
+            etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee -a out.txt
+        done
         set +o pipefail
 
     - name: Upload ETISS Outputs
       uses: actions/upload-artifact@v4
       with:
-        name: etiss-output-default-${{ env.PROG }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}
+        name: etiss-output-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}
         path: out.txt
+
+    - name: Cleanup
+      run: rm out.txt
 
     - name: Push changes to PR branch
       if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
