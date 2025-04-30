@@ -212,7 +212,7 @@ jobs:
          ls gnu
 
     - name: Build Examples (LLVM)
-      if: ${{ matrix.toolchain == "llvm" }}
+      if: ${{ matrix.toolchain == 'llvm' }}
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
@@ -221,7 +221,7 @@ jobs:
         cmake --install build
 
     - name: Build Examples (GCC)
-      if: ${{ matrix.toolchain == "gcc" }}
+      if: ${{ matrix.toolchain == 'gcc' }}
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
