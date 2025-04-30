@@ -267,9 +267,9 @@ jobs:
       env:
         cache-name: cache-seal5-binaries
       with:
-        path: ${{ env.SEAL5_LLVM_DIR }}
+        path: ${{ env.SEAL5_LLVM_DIR }}.tar.xz
         # path: ${{ env.SEAL5_OUT_DIR }}/seal5_llvm_install
-        key: seal5-binaries-s4e-${{ matrix.ubuntu-version }}-${{ matrix.python-version }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
+        key: seal5-binaries-s4e-${{ matrix.ubuntu-version }}-${{ matrix.python-version }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}-${{ env.SEAL5_BUILD_CONFIG }}
         # restore-keys: |
         #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
         #   seal5-binaries-${{ github.event.client_payload.name }}-
@@ -290,6 +290,17 @@ jobs:
         source venv/bin/activate
         export PYTHONPATH=$(pwd)
         OUT_DIR=${{ env.SEAL5_OUT_DIR }} DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
+        cd ${{ env.SEAL5_LLVM_DIR }}
+        XZ_OPT='-T0 -9' tar -cJf ${{ env.SEAL5_LLVM_DIR }}.tar.xz .
+        cd -
+
+    - name: Unpack Seal5 Archive
+      if: steps.cache-seal5.outputs.cache-hit == 'true'
+      run: |
+        mkdir ${{ env.SEAL5_LLVM_DIR }}
+        cd ${{ env.SEAL5_LLVM_DIR }}
+        tar xf ${{ env.SEAL5_LLVM_DIR }}.tar.xz
+        cd -
 
     - name: Get current date
       run: |
