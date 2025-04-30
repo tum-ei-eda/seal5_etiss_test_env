@@ -82,12 +82,24 @@ jobs:
       with:
          submodules: recursive
 
+    - name: Add Summary Header
+      run: |
+        echo "### Summary" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Update Summary (Trigger)
+      run: |
+        echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
     - name: Update CDSL ref
       if: github.event.client_payload.from == 'cdsl'
       run: |
         git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
         git -C etiss_arch_riscv submodule update --init --recursive
         git add etiss_arch_riscv
+        echo "Updated Ref: etiss_arch_riscv -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
 
     - name: Update M2-ISA-R ref
       # if: github.event.event_type == 'm2isar-event'
@@ -95,6 +107,7 @@ jobs:
       run: |
         git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
         git add M2-ISA-R
+        echo "Updated Ref: M2-ISA-R -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
 
     - name: Update Examples ref
       if: github.event.client_payload.from == 'examples'
@@ -102,6 +115,7 @@ jobs:
         git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
         git -C etiss_riscv_examples submodule update --init --recursive
         git add etiss_riscv_examples
+        echo "Updated Ref: etiss_riscv_examples -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
 
     - name: Update ETISS ref
       # if: github.event.event_type == 'etiss-event'
@@ -109,6 +123,7 @@ jobs:
       run: |
         git -C etiss checkout ${{ github.event.client_payload.ref }}
         git add etiss
+        echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
 
     - name: Add and count changed files
       id: count_files
@@ -171,6 +186,7 @@ jobs:
         virtualenv -p python${{ matrix.python-version }} venv
         source venv/bin/activate
         pip install -e .
+        echo "ETISS Cache Miss -> rebuild required" >> $GITHUB_STEP_SUMMARY
 
     - name: Run M2-ISA-R
       if: steps.cache-etiss.outputs.cache-hit != 'true'
@@ -227,6 +243,7 @@ jobs:
          cd ..
          rm gnu.tar.xz
          ls gnu
+         echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
 
     - name: Build Examples (LLVM)
       if: ${{ matrix.toolchain == 'llvm' }}

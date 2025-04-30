@@ -4,7 +4,8 @@ on:
   workflow_dispatch: {}
   repository_dispatch:
     # types: [cdsl-event, seal5-event, etiss-event, m2isar-event, examples-event]
-    types: [s4e-cdsl-event, seal5-event, etiss-event, m2isar-event, s4e-examples-event]
+    # types: [s4e-cdsl-event, seal5-event, etiss-event, m2isar-event, s4e-examples-event]
+    types: [cdsl-event, s4e-cdsl-event, seal5-event, etiss-event, m2isar-event, s4e-examples-event]
   push:
     branches: [ "main" ]
     paths:
@@ -98,18 +99,23 @@ jobs:
       with:
          submodules: recursive
 
-    # - name: Update CDSL ref
-    #   if: github.event.event_type == 'cdsl-event'
-    #   if: github.event.client_payload.from == 'cdsl'
-    #   run:
-    #     git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
-    #     git -C etiss_arch_riscv submodule update --init --recursive
-    #     git add etiss_arch_riscv
-
     - name: Add Summary Header
       run: |
-        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "### Summary" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Update Summary (Trigger)
+      run: |
+        echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Update CDSL ref
+      if: github.event.client_payload.from == 'cdsl'
+      run:
+        git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
+        git -C etiss_arch_riscv submodule update --init --recursive
+        git add etiss_arch_riscv
 
     - name: Update S4E CDSL ref
       # if: github.event.event_type == 's4e-cdsl-event'
@@ -222,7 +228,7 @@ jobs:
         echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "s4e_examples_ref=$(git -C etiss_riscv_examples_s4e rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
-        echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "cdsl-event, cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "s4e_cdsl_ref=$(git -C riscv-coredsl-extensions rev-parse HEAD)" >> $GITHUB_OUTPUT
 
     - name: Download Cached ETISS Binaries (S4E)
