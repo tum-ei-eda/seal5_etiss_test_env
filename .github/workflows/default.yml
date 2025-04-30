@@ -162,7 +162,7 @@ jobs:
         cache-name: cache-etiss-binaries
       with:
         path: etiss/build/install
-        key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}
+        key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}-${{ matrix.config.ETISS_ARCH }}
 
     - name: Setup M2-ISA-R
       if: steps.cache-etiss.outputs.cache-hit != 'true'
@@ -191,7 +191,8 @@ jobs:
     - name: Patch ETISS
       if: steps.cache-etiss.outputs.cache-hit != 'true'
       run: |
-        cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
+        # cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
+        cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/${{ matrix.config.ETISS_ARCH }}/ etiss/ArchImpl/  # TODO: generalize!
         cd etiss
         # cp ArchImpl/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
         # sed -i "s/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_ARCH }}/g" ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
@@ -267,16 +268,18 @@ jobs:
       if: success()
       run: |
         echo "### Status" >> $GITHUB_STEP_SUMMARY
-        echo "OK" >> $GITHUB_STEP_SUMMARY
+        echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
 
     - name: Add Summary (Failure)
       if: failure()
       run: |
         echo "### Status" >> $GITHUB_STEP_SUMMARY
-        echo "FAILING" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
         echo "ETISS Sim Outputs:" >> $GITHUB_STEP_SUMMARY
-        cat out.txt
+        cat out.txt >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
         echo "- - -" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
 
