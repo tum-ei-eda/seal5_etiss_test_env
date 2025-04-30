@@ -19,7 +19,7 @@ env:
   SEAL5_OUT_DIR: /home/runner/work/seal5_out/
   SEAL5_BUILD_CONFIG: release
   RISCV_GCC_NAME: riscv32-unknown-elf
-  ARCH: rv32im_xs4emac
+  ARCH: rv32im_zicsr_zifencei_xs4emac
   ETISS_TOP: "etiss-s4e-mac"
   ETISS_ARCH: "RV32IMCXS4EMAC"
   ETISS_BASE_ARCH: "RV32IMACFD"
@@ -328,7 +328,7 @@ jobs:
     #       # chmod +x $ETISS_PREBUILT_DIR/bin/bare_etiss_processor
     #       # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
     #       # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
-    #       etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
+    #       etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
 
     - name: Run S4E Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
       run: |
@@ -336,7 +336,7 @@ jobs:
         # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
         # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
         set -o pipefail
-        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
+        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/build/install/ini/${{ env.PROG }}.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee out.txt
         set +o pipefail
 
     - name: Upload ETISS Outputs

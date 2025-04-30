@@ -20,7 +20,6 @@ env:
   TC_NAME: "riscv64-unknown-elf"
   TC_OS: "ubuntu"
   LLVM_REF: "llvmorg-19.1.7"
-  TOOLCHAIN: "gcc"
   ETISS_TOP: "top"
 
 jobs:
@@ -33,6 +32,9 @@ jobs:
         - 22.04
         python-version:
         - "3.10"
+        toolchain:
+        - gcc
+        # - llvm
         config:
         - {RISCV_GCC_NAME: riscv32-unknown-elf, ARCH: rv32imafdc, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32d, XLEN: 32}
         - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV64IMACFD", ABI: lp64d, XLEN: 64}
@@ -210,7 +212,7 @@ jobs:
          ls gnu
 
     - name: Build Examples (LLVM)
-      if: env.TOOLCHAIN == "llvm"
+      if: matrix.toolchain == "llvm"
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
@@ -219,7 +221,7 @@ jobs:
         cmake --install build
 
     - name: Build Examples (GCC)
-      if: env.TOOLCHAIN == "gcc"
+      if: matrix.toolchain == "gcc"
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
@@ -232,7 +234,7 @@ jobs:
     - name: Run Example ${{ env.PROG }} on ${{ matrix.config.ETISS_ARCH }}
       run: |
         set -o pipefail
-        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/install/ini/${{ matrix.config.PROG }}.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee out.txt
+        etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/${{ matrix.config.PROG }}.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee out.txt
         set +o pipefail
 
     - name: Upload ETISS Outputs
