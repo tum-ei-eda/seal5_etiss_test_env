@@ -133,52 +133,6 @@ jobs:
         git add etiss
         echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
 
-    - name: Add and count changed files
-      id: count_files
-      working-directory: ./
-      run: |
-        NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
-        echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
-
-    - name: Check if PR Branch already exists
-      if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
-      id: check_branch
-      run: |
-        CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
-        echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
-
-    - name: Switch to PR Branch
-      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success()
-      run: |
-        git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
-        # git fetch --all
-        git fetch origin
-        # git stash
-        # git checkout pr_update_${{ github.event.client_payload.from }}
-        # git checkout main  # TODO: do not hardcode
-        git branch -d -r origin/pr_update_${{ github.event.client_payload.from }}
-        git checkout -b pr_update_${{ github.event.client_payload.from }}
-        # git stash pop
-
-    # - name: Create PR Branch
-    #   if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
-    #   run: |
-    #     git checkout -b pr_update_${{ github.event.client_payload.from }}
-
-    - name: Commit Refs to PR branch
-      if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
-      run: |
-        git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
-
-    - name: Get Refs
-      if: success()
-      id: refs
-      run: |
-        echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
-        echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
-        echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
-        echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
-
     - name: Download Cached ETISS Binaries
       if: success()
       id: cache-etiss
@@ -396,6 +350,118 @@ jobs:
     - name: Cleanup
       if: success()
       run: rm -f etiss_compile_out.txt etiss_sw_build_out.txt etiss_sw_run_out.txt || true
+
+  finalize:
+    needs: [flow]
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "${GITHUB_ACTOR}"
+        git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+    - name: Clone Repo and Submodules
+      uses: actions/checkout@v4
+      with:
+         submodules: recursive
+         fetch-depth: 0
+
+    - name: Add Summary Header
+      run: |
+        echo "### Summary" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Update Summary (Trigger)
+      run: |
+        echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Update CDSL ref
+      if: github.event.client_payload.from == 'cdsl' && success()
+      run: |
+        git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
+        git -C etiss_arch_riscv submodule update --init --recursive
+        git add etiss_arch_riscv
+        echo "Updated Ref: etiss_arch_riscv -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Update M2-ISA-R ref
+      # if: github.event.event_type == 'm2isar-event'
+      if: github.event.client_payload.from == 'm2isar' && success()
+      run: |
+        git -C M2-ISA-R fetch
+        git -C M2-ISA-R branch -a
+        git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
+        git add M2-ISA-R
+        echo "Updated Ref: M2-ISA-R -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Update Examples ref
+      if: github.event.client_payload.from == 'examples' && success()
+      run: |
+        git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
+        git -C etiss_riscv_examples submodule update --init --recursive
+        git add etiss_riscv_examples
+        echo "Updated Ref: etiss_riscv_examples -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Update ETISS ref
+      # if: github.event.event_type == 'etiss-event'
+      if: github.event.client_payload.from == 'etiss' && success()
+      run: |
+        git -C etiss checkout ${{ github.event.client_payload.ref }}
+        git add etiss
+        echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Add and count changed files
+      id: count_files
+      working-directory: ./
+      run: |
+        NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
+        echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
+
+    - name: Check if PR Branch already exists
+      if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
+      id: check_branch
+      run: |
+        CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
+        echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
+
+    - name: Switch to PR Branch
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success()
+      run: |
+        git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
+        # git fetch --all
+        git fetch origin
+        # git stash
+        # git checkout pr_update_${{ github.event.client_payload.from }}
+        # git checkout main  # TODO: do not hardcode
+        git branch -d -r origin/pr_update_${{ github.event.client_payload.from }}
+        git checkout -b pr_update_${{ github.event.client_payload.from }}
+        # git stash pop
+
+    # - name: Create PR Branch
+    #   if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
+    #   run: |
+    #     git checkout -b pr_update_${{ github.event.client_payload.from }}
+
+    - name: Commit Refs to PR branch
+      if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
+      run: |
+        git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
+
+    - name: Get Refs
+      if: success()
+      id: refs
+      run: |
+        echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
 
     - name: Push changes to PR branch
       if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success() && github.event.client_payload.is_pr != 'true'
