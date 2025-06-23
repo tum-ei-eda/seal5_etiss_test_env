@@ -32,7 +32,7 @@ env:
   TC_VARIANT: "multilib_default"
   TC_NAME: "riscv64-unknown-elf"  # redundant
   TC_OS: "ubuntu"
-  LLVM_REF: "llvmorg-19.1.7"
+  LLVM_REF: "llvmorg-19.1.1"
   ETISS_TOP: "top"
   PROGS: "hello_world,dhry"
 
@@ -48,7 +48,7 @@ jobs:
         - "3.10"
         toolchain:
         - gcc
-        # - llvm
+        - llvm
         config:
         # Multilib GCC is missing rv32imacfd build!
         # - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
@@ -259,13 +259,33 @@ jobs:
          ls gnu
          echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
 
+    - name: Download Cached LLVM Binaries
+      if: ${{ matrix.toolchain == 'llvm' && success() }}
+      id: cache-llvm
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-llvm-binaries
+      with:
+        path: llvm/  # TODO: move?
+        key: llvm-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.LLVM_REF }}-${{ steps.date.outputs.date }}
+
+    - name: Download LLVM Toolchain
+      if: steps.cache-llvm.outputs.cache-hit != 'true' && success()
+      run: |
+         wget https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_REF }}/clang+llvm-${{ env.LLVM_REF }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz.tar.xz -O llvm.tar.xz
+         mkdir llvm
+         cd llvm
+         tar xvf ../llvm.tar.xz
+         cd ..
+         rm llvm.tar.xz
+         ls llvm
+         echo "LLVM Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
+
     - name: Build Examples (LLVM)
       if: ${{ matrix.toolchain == 'llvm' && success() }}
       run: |
-        # TODO: also run GCC here!
-        echo "1? = @${{ matrix.toolchain }}@"
-        echo "2? = @${{ matrix.toolchain == 'llvm'}}@"
         cd etiss_riscv_examples
+        export PATH=$(pwd)../llvm/bin/:$PATH
         cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }}
         for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
             echo "prog=$prog"
