@@ -253,7 +253,7 @@ jobs:
     - name: Download RISCV-GNU-Toolchain
       if: steps.cache-gcc.outputs.cache-hit != 'true' && success()
       run: |
-         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
+         wget -q https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
          mkdir gnu
          cd gnu
          tar xvf ../gnu.tar.xz
@@ -275,7 +275,7 @@ jobs:
     - name: Download LLVM Toolchain
       if: ${{ matrix.toolchain == 'llvm' && steps.cache-llvm.outputs.cache-hit != 'true' && success() }}
       run: |
-         wget https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_VERSION }}/clang+llvm-${{ env.LLVM_VERSION }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz -O llvm.tar.xz
+         wget -q https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_VERSION }}/clang+llvm-${{ env.LLVM_VERSION }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz -O llvm.tar.xz
          mkdir llvm
          cd llvm
          tar xvf ../llvm.tar.xz
