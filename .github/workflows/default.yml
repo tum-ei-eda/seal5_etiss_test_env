@@ -353,7 +353,6 @@ jobs:
         autoconf 2>&1 | tee -a etiss_riscv_tests_build_out.txt
         ./configure 2>&1 | tee -a etiss_riscv_tests_build_out.txt
         make RISCV_PREFIX=riscv64-unknown-elf- XLEN=${{ matrix.config.XLEN }} isa -j `nproc` 2>&1 | tee -a etiss_riscv_tests_build_out.txt
-        cmake --install build 2>&1 | tee -a etiss_riscv_tests_build_out.txt
         set +o pipefail
 
     - name: Add ETISS Tests Build Summary (Failure)
