@@ -293,11 +293,11 @@ jobs:
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "**ETISS SW Build Outputs:**" >> $GITHUB_STEP_SUMMARY
-        echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
         cat etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
-        echo "```" >> $GITHUB_STEP_SUMMARY
-        echo >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo >> $GITHUB_STEP_SUMMARY
         exit 1
 
     # TODO: commit etiss changes? -> Generate patch file?
@@ -321,10 +321,10 @@ jobs:
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "**ETISS Sim Outputs:**" >> $GITHUB_STEP_SUMMARY
-        echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
         cat etiss_sw_run_out.txt >> $GITHUB_STEP_SUMMARY
-        echo >> $GITHUB_STEP_SUMMARY
-        echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         exit 1
 
@@ -344,23 +344,58 @@ jobs:
         # echo "```" >> $GITHUB_STEP_SUMMARY
         # echo >> $GITHUB_STEP_SUMMARY
 
-    - name: Run ETISS RISC-V Tests
+    - name: Build ETISS RISC-V Tests
       id: etiss-build-riscv-tests
       run: |
+        set -o pipefail
+        cd riscv-tests
         export PATH=$(pwd)/../gnu/bin/:$PATH
-        autoconf
-        ./configure
-        make RISCV_PREFIX=riscv64-unknown-elf- XLEN=${{ matrix.config.XLEN }} isa -j `nproc`
+        autoconf 2>&1 | tee -a etiss_riscv_tests_build_out.txt
+        ./configure 2>&1 | tee -a etiss_riscv_tests_build_out.txt
+        make RISCV_PREFIX=riscv64-unknown-elf- XLEN=${{ matrix.config.XLEN }} isa -j `nproc` 2>&1 | tee -a etiss_riscv_tests_build_out.txt
+        cmake --install build 2>&1 | tee -a etiss_riscv_tests_build_out.txt
+        set +o pipefail
+
+    - name: Add ETISS Tests Build Summary (Failure)
+      if: steps.etiss-build-riscv-tests.outcome != 'success'
+      run: |
+        echo "### ETISS Build RISC-V Tests Status" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "**Output:**" >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
+        cat etiss_riscv_tests_build_out.txt >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo >> $GITHUB_STEP_SUMMARY
+        exit 1
 
     - name: Run ETISS RISC-V Tests
       id: etiss-run-riscv-tests
       run: |
         source .venv/bin/activate
-        python etiss_riscv_tests/test.py --arch RV${{ matrix.config.XLEN }}${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit ${{ matrix.jit }} --runlevel msu riscv-tests/isa etiss/build/install/bin/bare_etiss_processor
+        python etiss_riscv_tests/test.py --arch RV${{ matrix.config.XLEN }}${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit ${{ matrix.jit }} --runlevel msu riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
         echo "Passing:"
         cat results_*/pass.txt
         echo "Failing:"
         cat results_*/fail.txt
+
+    - name: Add ETISS RISC-V Test Results Summary
+      if: steps.etiss-build-riscv-tests.outcome != 'success'
+      run: |
+        echo "### ETISS RISC-V Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "**Output:**" >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
+        cat etiss_riscv_tests_run_out.txt >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo >> $GITHUB_STEP_SUMMARY
+        echo "**Results:**" >> $GITHUB_STEP_SUMMARY
+        echo "Passing:"
+        cat results_*/pass.txt
+        echo "Failing:"
+        cat results_*/fail.txt
+        exit 1
 
     - name: Add Overall Summary (only on success)
       if: success()
@@ -371,7 +406,7 @@ jobs:
 
     - name: Cleanup
       if: success()
-      run: rm -f etiss_compile_out.txt etiss_sw_build_out.txt etiss_sw_run_out.txt results_* || true
+      run: rm -f *_out.txt results_* || true
 
   finalize:
     needs: [flow]
