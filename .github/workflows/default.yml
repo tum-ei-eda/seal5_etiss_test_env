@@ -398,14 +398,14 @@ jobs:
       run: rm -f etiss_compile_out.txt etiss_sw_build_out.txt etiss_sw_run_out.txt || true
 
     - name: Push changes to PR branch
-      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success()
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success() && github.event.client_payload.is_pr != 'true'
       uses: ad-m/github-push-action@master
       with:
         branch: pr_update_${{ github.event.client_payload.from }}
         force: true
 
     - name: Create Pull Request
-      if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0' && success()
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0' && success() && github.event.client_payload.is_pr != 'true'
       uses: peter-evans/create-pull-request@v6
       with:
         commit-message: "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
