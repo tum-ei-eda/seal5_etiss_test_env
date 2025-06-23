@@ -395,6 +395,13 @@ jobs:
         echo "Failing:" >> $GITHUB_STEP_SUMMARY
         cat results_*/fail.txt >> $GITHUB_STEP_SUMMARY
 
+    - name: Upload Test Artifacts
+      # if: success() || failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: etiss-riscv-tests-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
+        path: results_*
+
     - name: Add Overall Summary (only on success)
       if: success()
       run: |
