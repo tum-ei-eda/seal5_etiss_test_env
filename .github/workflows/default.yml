@@ -334,8 +334,7 @@ jobs:
       run: rm out.txt
 
     - name: Push changes to PR branch
-      if: success()
-      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success()
       uses: ad-m/github-push-action@master
       with:
         branch: pr_update_${{ github.event.client_payload.from }}
