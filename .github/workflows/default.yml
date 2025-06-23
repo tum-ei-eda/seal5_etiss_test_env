@@ -236,6 +236,7 @@ jobs:
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "ETISS Compile Outputs: TODO" >> $GITHUB_STEP_SUMMARY
+        exit 1
 
     - name: Download Cached GCC Binaries
       if: success()
@@ -318,10 +319,12 @@ jobs:
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "ETISS SW Build Outputs: TODO" >> $GITHUB_STEP_SUMMARY
+        exit 1
 
     # TODO: commit etiss changes? -> Generate patch file?
 
     - name: Run Examples on ${{ matrix.config.ETISS_ARCH }}
+      if: success()
       id: etiss-run-sw
       continue-on-error: true
       run: |
@@ -343,6 +346,7 @@ jobs:
         echo >> $GITHUB_STEP_SUMMARY
         echo "- - -" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
+        exit 1
 
     - name: Upload ETISS Outputs
       if: success() || failure()
