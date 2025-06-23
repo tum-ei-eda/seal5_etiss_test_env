@@ -371,7 +371,11 @@ jobs:
     - name: Run ETISS RISC-V Tests
       id: etiss-run-riscv-tests
       run: |
-        source .venv/bin/activate
+        cd etiss_riscv_tests
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+        cd ..
         python etiss_riscv_tests/test.py --arch RV${{ matrix.config.XLEN }}${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit ${{ matrix.jit }} --runlevel msu riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
         echo "Passing:"
         cat results_*/pass.txt
