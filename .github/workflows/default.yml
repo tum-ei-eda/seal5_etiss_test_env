@@ -381,10 +381,10 @@ jobs:
       if: steps.etiss-run-sw.outcome == 'success'
       run: |
         echo "### ETISS SW Run Metrics" >> $GITHUB_STEP_SUMMARY
-        echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
         egrep '(\-\-\- Program:|MIPS \(estimated\):|Simulation Time:|CPU Cycles \(estimated\):)' etiss_sw_run_out.txt >> $GITHUB_STEP_SUMMARY
-        echo "```" >> $GITHUB_STEP_SUMMARY
-        echo >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo >> $GITHUB_STEP_SUMMARY
 
     - name: Add Overall Summary (only on success)
       if: success()
