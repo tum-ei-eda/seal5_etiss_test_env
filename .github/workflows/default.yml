@@ -376,15 +376,7 @@ jobs:
         source venv/bin/activate
         pip install -r requirements.txt
         cd ..
-        python etiss_riscv_tests/test.py --arch RV${{ matrix.config.XLEN }}${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit $(echo ${{ matrix.jit }} | tr '[:upper:]' '[:lower:]') --runlevel msu --keep-output both riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
-        echo "Passing:"
-        cat results_*/pass.txt
-        echo "Failing:"
-        cat results_*/fail.txt
-        tree
-        (cat results_*/fail/rv32ui-p-and.stdout >> $GITHUB_STEP_SUMMARY) || true
-        (cat results_*/fail/rv32ui-p-and.stderr >> $GITHUB_STEP_SUMMARY) || true
-        (cat results_*/config/rv32ui-p-and.ini >> $GITHUB_STEP_SUMMARY) || true
+        python etiss_riscv_tests/test.py --arch ${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit $(echo ${{ matrix.jit }} | tr '[:upper:]' '[:lower:]') --runlevel msu --keep-output both riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
 
     - name: Add ETISS RISC-V Test Results Summary
       # if: steps.etiss-run-riscv-tests.outcome != 'success'
@@ -400,8 +392,6 @@ jobs:
         echo "**Results:**" >> $GITHUB_STEP_SUMMARY
         echo "Passing:" >> $GITHUB_STEP_SUMMARY
         cat results_*/pass.txt >> $GITHUB_STEP_SUMMARY
-        cat results_*/fail/rv32ui-p-and.stdout >> $GITHUB_STEP_SUMMARY
-        cat results_*/fail/rv32ui-p-and.stderr >> $GITHUB_STEP_SUMMARY
         echo "Failing:" >> $GITHUB_STEP_SUMMARY
         cat results_*/fail.txt >> $GITHUB_STEP_SUMMARY
         exit 1
