@@ -382,7 +382,7 @@ jobs:
       # if: steps.etiss-run-riscv-tests.outcome != 'success'
       run: |
         echo "### ETISS RISC-V Test Results" >> $GITHUB_STEP_SUMMARY
-        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        # echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "**Output:**" >> $GITHUB_STEP_SUMMARY
         # echo "```" >> $GITHUB_STEP_SUMMARY
