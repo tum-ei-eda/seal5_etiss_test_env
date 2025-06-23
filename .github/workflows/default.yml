@@ -230,7 +230,7 @@ jobs:
     - name: Add ETISS Compile Summary (Failure)
       if: failure()
       run: |
-        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "### ETISS Compile Status" >> $GITHUB_STEP_SUMMARY
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "ETISS Compile Outputs: TODO" >> $GITHUB_STEP_SUMMARY
@@ -274,7 +274,7 @@ jobs:
         cmake --install build
 
     - name: Build Examples (GCC)
-      if: ${{ matrix.toolchain == 'gcc' }} && success()
+      if: ${{ matrix.toolchain == 'gcc' && success() }}
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
@@ -288,7 +288,7 @@ jobs:
     - name: Add ETISS SW Build Summary (Failure)
       if: failure()
       run: |
-        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "ETISS SW Build Outputs: TODO" >> $GITHUB_STEP_SUMMARY
@@ -305,17 +305,10 @@ jobs:
         done
         set +o pipefail
 
-    - name: Add ETISS Run Summary (Success)
-      if: success()
-      run: |
-        echo "### Status" >> $GITHUB_STEP_SUMMARY
-        echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
-        echo >> $GITHUB_STEP_SUMMARY
-
-    - name: Add ETISS Run Summary (Failure)
+    - name: Add ETISS SW Run Summary (Failure)
       if: failure()
       run: |
-        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "### ETISS SW Run Status" >> $GITHUB_STEP_SUMMARY
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "ETISS Sim Outputs:" >> $GITHUB_STEP_SUMMARY
@@ -330,6 +323,14 @@ jobs:
       with:
         name: etiss-output-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}
         path: out.txt
+
+    - name: Add Overall Summary (only on success)
+      if: success()
+      run: |
+        echo "### Final Status" >> $GITHUB_STEP_SUMMARY
+        echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
 
     - name: Cleanup
       if: success()
