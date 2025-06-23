@@ -32,7 +32,7 @@ env:
   TC_VARIANT: "multilib_default"
   TC_NAME: "riscv64-unknown-elf"  # redundant
   TC_OS: "ubuntu"
-  LLVM_REF: "llvmorg-19.1.1"
+  LLVM_VERSION: "19.1.1"
   ETISS_TOP: "top"
   PROGS: "hello_world,dhry"
 
@@ -222,13 +222,15 @@ jobs:
 
     - name: Build ETISS
       if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
+      id: etiss-compile
+      continue-on-error: true
       run: |
         cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
         cmake --build etiss/build -j$(nproc)
         cmake --install etiss/build
 
     - name: Add ETISS Compile Summary (Failure)
-      if: failure()
+      if: steps.etiss-compile.outcome != 'success'
       run: |
         echo "### ETISS Compile Status" >> $GITHUB_STEP_SUMMARY
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
@@ -267,12 +269,12 @@ jobs:
         cache-name: cache-llvm-binaries
       with:
         path: llvm/  # TODO: move?
-        key: llvm-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.LLVM_REF }}-${{ steps.date.outputs.date }}
+        key: llvm-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.LLVM_VERSION }}-${{ steps.date.outputs.date }}
 
     - name: Download LLVM Toolchain
       if: steps.cache-llvm.outputs.cache-hit != 'true' && success()
       run: |
-         wget https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_REF }}/clang+llvm-${{ env.LLVM_REF }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz.tar.xz -O llvm.tar.xz
+         wget https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_VERSION }}/clang+llvm-${{ env.LLVM_REF }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz.tar.xz -O llvm.tar.xz
          mkdir llvm
          cd llvm
          tar xvf ../llvm.tar.xz
@@ -283,6 +285,8 @@ jobs:
 
     - name: Build Examples (LLVM)
       if: ${{ matrix.toolchain == 'llvm' && success() }}
+      id: etiss-build-sw-llvm
+      continue-on-error: true
       run: |
         cd etiss_riscv_examples
         export PATH=$(pwd)../llvm/bin/:$PATH
@@ -295,6 +299,8 @@ jobs:
 
     - name: Build Examples (GCC)
       if: ${{ matrix.toolchain == 'gcc' && success() }}
+      id: etiss-build-sw-gcc
+      continue-on-error: true
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
@@ -306,7 +312,7 @@ jobs:
         cmake --install build
 
     - name: Add ETISS SW Build Summary (Failure)
-      if: failure()
+      if: steps.etiss-build-sw-llvm.outcome != 'success' || steps.etiss-build-sw-gcc.outcome != 'success'
       run: |
         echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
@@ -316,7 +322,8 @@ jobs:
     # TODO: commit etiss changes? -> Generate patch file?
 
     - name: Run Examples on ${{ matrix.config.ETISS_ARCH }}
-      if: success()
+      id: etiss-run-sw
+      continue-on-error: true
       run: |
         set -o pipefail
         for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
@@ -326,7 +333,7 @@ jobs:
         set +o pipefail
 
     - name: Add ETISS SW Run Summary (Failure)
-      if: failure()
+      if: steps.etiss-run-sw.outcome != 'success'
       run: |
         echo "### ETISS SW Run Status" >> $GITHUB_STEP_SUMMARY
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
@@ -354,7 +361,7 @@ jobs:
 
     - name: Cleanup
       if: success()
-      run: rm out.txt
+      run: rm -f out.txt || true
 
     - name: Push changes to PR branch
       if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success()
