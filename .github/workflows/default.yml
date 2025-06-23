@@ -49,6 +49,10 @@ jobs:
         toolchain:
         - gcc
         - llvm
+        jit:
+        - TCC
+        - GCC
+        # - llvm
         config:
         # Multilib GCC is missing rv32imacfd build!
         # - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
@@ -347,8 +351,8 @@ jobs:
       run: |
         set -o pipefail
         for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
-            echo "--- Program: $prog ---" | tee -a out.txt
-            timeout 1m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} 2>&1 | tee -a etiss_sw_run_out.txt
+            echo "--- Program: $prog ---" | tee -a etiss_sw_run_out.txt
+            timeout 1m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT 2>&1 | tee -a etiss_sw_run_out.txt
         done
         set +o pipefail
 
@@ -370,8 +374,17 @@ jobs:
       if: success() || failure()
       uses: actions/upload-artifact@v4
       with:
-        name: etiss-output-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}
+        name: etiss-output-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
         path: etiss_sw_run_out.txt
+
+    - name: Add ETISS SW Run Summary (Metrics)
+      if: steps.etiss-run-sw.outcome == 'success'
+      run: |
+        echo "### ETISS SW Run Metrics" >> $GITHUB_STEP_SUMMARY
+        echo "```" >> $GITHUB_STEP_SUMMARY
+        cat etiss_sw_run_out.txt | grep "\-\-\- Program:\|MIPS (estimated):\|Simulation Time:\|CPU Cycles (estimated):" >> $GITHUB_STEP_SUMMARY
+        echo "```" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
 
     - name: Add Overall Summary (only on success)
       if: success()
@@ -379,7 +392,6 @@ jobs:
         echo "### Final Status" >> $GITHUB_STEP_SUMMARY
         echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
-
 
     - name: Cleanup
       if: success()
