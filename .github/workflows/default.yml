@@ -137,6 +137,16 @@ jobs:
         git add etiss
         echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
 
+    - name: Get Refs
+      if: success()
+      id: refs
+      run: |
+        echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "etiss_riscv_tests_ref=$(git -C etiss_riscv_tests rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
+
     - name: Download Cached ETISS Binaries
       if: success()
       id: cache-etiss
@@ -145,7 +155,7 @@ jobs:
         cache-name: cache-etiss-binaries
       with:
         path: etiss/build/install
-        key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}-${{ matrix.config.ETISS_ARCH }}
+        key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}-${{ matrix.config.ETISS_ARCH }}-${{ steps.refs.outputs.etiss_riscv_tests_ref }}
 
     - name: Setup M2-ISA-R
       if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
@@ -189,6 +199,9 @@ jobs:
       continue-on-error: true
       run: |
         set -o pipefail
+        cd etiss/PluginImpl
+        ln -s ../../etiss_riscv_tests/FileLoggerPlugin .
+        cd ../..
         cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} 2>&1 | tee -a etiss_compile_out.txt
         cmake --build etiss/build -j$(nproc) 2>&1 | tee -a etiss_compile_out.txt
         cmake --install etiss/build 2>&1 | tee -a etiss_compile_out.txt
@@ -521,6 +534,7 @@ jobs:
       id: refs
       run: |
         echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "etiss_riscv_tests_ref=$(git -C etiss_riscv_tests rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
         echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
