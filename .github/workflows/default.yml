@@ -53,6 +53,7 @@ jobs:
         # Multilib GCC is missing rv32imacfd build!
         # - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
         - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac_zicsr_zifencei, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
+        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32gc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32d, XLEN: 32}
         - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV64IMACFD", ABI: lp64d, XLEN: 64}
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
