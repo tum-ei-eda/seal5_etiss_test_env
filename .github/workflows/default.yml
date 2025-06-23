@@ -243,11 +243,11 @@ jobs:
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "**ETISS Compile Outputs:**" >> $GITHUB_STEP_SUMMARY
-        echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
         cat etiss_compile_out.txt >> $GITHUB_STEP_SUMMARY
-        echo >> $GITHUB_STEP_SUMMARY
-        echo "```" >> $GITHUB_STEP_SUMMARY
-        echo >> $GITHUB_STEP_SUMMARY
+        # echo >> $GITHUB_STEP_SUMMARY
+        # echo "```" >> $GITHUB_STEP_SUMMARY
+        # echo >> $GITHUB_STEP_SUMMARY
         exit 1
 
     - name: Download Cached GCC Binaries
