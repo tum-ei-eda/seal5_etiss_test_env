@@ -313,7 +313,7 @@ jobs:
         cmake --install build
 
     - name: Add ETISS SW Build Summary (Failure)
-      if: steps.etiss-build-sw-llvm.outcome != 'success' || steps.etiss-build-sw-gcc.outcome != 'success'
+      if: steps.etiss-build-sw-llvm.outcome == 'failure' || steps.etiss-build-sw-gcc.outcome == 'failure'
       run: |
         echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
