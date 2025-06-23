@@ -381,6 +381,7 @@ jobs:
         cat results_*/pass.txt
         echo "Failing:"
         cat results_*/fail.txt
+        tree
         (cat results_*/fail/rv32ui-p-and.stdout >> $GITHUB_STEP_SUMMARY) || true
         (cat results_*/fail/rv32ui-p-and.stderr >> $GITHUB_STEP_SUMMARY) || true
         (cat results_*/config/rv32ui-p-and.ini >> $GITHUB_STEP_SUMMARY) || true
