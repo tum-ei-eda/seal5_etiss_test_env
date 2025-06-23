@@ -166,7 +166,7 @@ jobs:
         git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
 
     - name: Get Refs
-      if: successs()
+      if: success()
       id: refs
       run: |
         echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
@@ -175,7 +175,7 @@ jobs:
         echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
 
     - name: Download Cached ETISS Binaries
-      if: successs()
+      if: success()
       id: cache-etiss
       uses: actions/cache@v4
       env:
