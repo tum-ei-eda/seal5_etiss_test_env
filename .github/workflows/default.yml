@@ -382,7 +382,7 @@ jobs:
       run: |
         echo "### ETISS SW Run Metrics" >> $GITHUB_STEP_SUMMARY
         echo "```" >> $GITHUB_STEP_SUMMARY
-        cat etiss_sw_run_out.txt | grep "\-\-\- Program:\|MIPS (estimated):\|Simulation Time:\|CPU Cycles (estimated):" >> $GITHUB_STEP_SUMMARY
+        cat etiss_sw_run_out.txt | grep '\-\-\- Program:\|MIPS (estimated):\|Simulation Time:\|CPU Cycles (estimated):' >> $GITHUB_STEP_SUMMARY
         echo "```" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
 
