@@ -12,6 +12,8 @@ on:
       - etiss_riscv_examples
       - M2-ISA-R
       - etiss_arch_riscv
+      - riscv-tests  # TODO: add triggers
+      - etiss_riscv_tests  # TODO: add triggers
   pull_request:
     branches: [ "main" ]
     paths:
@@ -20,6 +22,8 @@ on:
       - etiss_riscv_examples
       - M2-ISA-R
       - etiss_arch_riscv
+      - riscv-tests  # TODO: add triggers
+      - etiss_riscv_tests  # TODO: add triggers
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -56,9 +60,9 @@ jobs:
         config:
         # Multilib GCC is missing rv32imacfd build!
         # - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
-        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac_zicsr_zifencei, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
-        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imafc, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32f, XLEN: 32}  # rv32gc not supported by multilib gcc
-        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV64IMACFD", ABI: lp64d, XLEN: 64}
+        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac_zicsr_zifencei, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32, TEST_EXTS: imacfd}
+        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imafc, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32f, XLEN: 32, TEST_EXTS: imacf}  # rv32gc not supported by multilib gcc
+        - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: "RV64IMACFD", ETISS_BASE_ARCH: "RV64IMACFD", ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
 
@@ -340,6 +344,24 @@ jobs:
         # echo "```" >> $GITHUB_STEP_SUMMARY
         # echo >> $GITHUB_STEP_SUMMARY
 
+    - name: Run ETISS RISC-V Tests
+      id: etiss-build-riscv-tests
+      run: |
+        export PATH=$(pwd)/../gnu/bin/:$PATH
+        autoconf
+        ./configure
+        make RISCV_PREFIX=riscv64-unknown-elf- XLEN=${{ matrix.config.XLEN }} isa -j `nproc`
+
+    - name: Run ETISS RISC-V Tests
+      id: etiss-run-riscv-tests
+      run: |
+        source .venv/bin/activate
+        python etiss_riscv_tests/test.py --arch RV${{ matrix.config.XLEN }}${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit ${{ matrix.jit }} --runlevel msu riscv-tests/isa etiss/build/install/bin/bare_etiss_processor
+        echo "Passing:"
+        cat results_*/pass.txt
+        echo "Failing:"
+        cat results_*/fail.txt
+
     - name: Add Overall Summary (only on success)
       if: success()
       run: |
@@ -349,11 +371,11 @@ jobs:
 
     - name: Cleanup
       if: success()
-      run: rm -f etiss_compile_out.txt etiss_sw_build_out.txt etiss_sw_run_out.txt || true
+      run: rm -f etiss_compile_out.txt etiss_sw_build_out.txt etiss_sw_run_out.txt results_* || true
 
   finalize:
     needs: [flow]
-    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    runs-on: ubuntu-latest
     steps:
 
     - name: Set up Python ${{ matrix.python-version }}
