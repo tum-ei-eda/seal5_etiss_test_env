@@ -289,7 +289,7 @@ jobs:
       continue-on-error: true
       run: |
         cd etiss_riscv_examples
-        export PATH=$(pwd)../llvm/bin/:$PATH
+        export PATH=$(pwd)/../llvm/bin/:$PATH
         cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }}
         for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
             echo "prog=$prog"
