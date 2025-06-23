@@ -394,7 +394,6 @@ jobs:
         cat results_*/pass.txt >> $GITHUB_STEP_SUMMARY
         echo "Failing:" >> $GITHUB_STEP_SUMMARY
         cat results_*/fail.txt >> $GITHUB_STEP_SUMMARY
-        exit 1
 
     - name: Add Overall Summary (only on success)
       if: success()
