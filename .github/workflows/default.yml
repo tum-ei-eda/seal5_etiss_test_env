@@ -95,7 +95,7 @@ jobs:
         echo >> $GITHUB_STEP_SUMMARY
 
     - name: Update CDSL ref
-      if: github.event.client_payload.from == 'cdsl'
+      if: github.event.client_payload.from == 'cdsl' && success()
       run: |
         git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
         git -C etiss_arch_riscv submodule update --init --recursive
@@ -104,7 +104,7 @@ jobs:
 
     - name: Update M2-ISA-R ref
       # if: github.event.event_type == 'm2isar-event'
-      if: github.event.client_payload.from == 'm2isar'
+      if: github.event.client_payload.from == 'm2isar' && success()
       run: |
         git -C M2-ISA-R fetch
         git -C M2-ISA-R branch -a
@@ -113,7 +113,7 @@ jobs:
         echo "Updated Ref: M2-ISA-R -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
 
     - name: Update Examples ref
-      if: github.event.client_payload.from == 'examples'
+      if: github.event.client_payload.from == 'examples' && success()
       run: |
         git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
         git -C etiss_riscv_examples submodule update --init --recursive
@@ -122,7 +122,7 @@ jobs:
 
     - name: Update ETISS ref
       # if: github.event.event_type == 'etiss-event'
-      if: github.event.client_payload.from == 'etiss'
+      if: github.event.client_payload.from == 'etiss' && success()
       run: |
         git -C etiss checkout ${{ github.event.client_payload.ref }}
         git add etiss
@@ -136,14 +136,14 @@ jobs:
         echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
 
     - name: Check if PR Branch already exists
-      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
       id: check_branch
       run: |
         CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
         echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
 
     - name: Switch to PR Branch
-      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success()
       run: |
         git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
         # git fetch --all
@@ -161,11 +161,12 @@ jobs:
     #     git checkout -b pr_update_${{ github.event.client_payload.from }}
 
     - name: Commit Refs to PR branch
-      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
       run: |
         git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
 
     - name: Get Refs
+      if: successs()
       id: refs
       run: |
         echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
@@ -174,6 +175,7 @@ jobs:
         echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
 
     - name: Download Cached ETISS Binaries
+      if: successs()
       id: cache-etiss
       uses: actions/cache@v4
       env:
@@ -183,7 +185,7 @@ jobs:
         key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref }}-${{ matrix.config.ETISS_ARCH }}
 
     - name: Setup M2-ISA-R
-      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
       run: |
         cd M2-ISA-R
         virtualenv -p python${{ matrix.python-version }} venv
@@ -192,7 +194,7 @@ jobs:
         echo "ETISS Cache Miss -> rebuild required" >> $GITHUB_STEP_SUMMARY
 
     - name: Run M2-ISA-R
-      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
       run: |
         cd M2-ISA-R
         source venv/bin/activate
@@ -208,7 +210,7 @@ jobs:
     #        riscv-coredsl-extensions/gen_output
 
     - name: Patch ETISS
-      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
       run: |
         # cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
         cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/${{ matrix.config.ETISS_ARCH }}/ etiss/ArchImpl/  # TODO: generalize!
@@ -219,13 +221,22 @@ jobs:
         git restore ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
 
     - name: Build ETISS
-      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
       run: |
         cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
         cmake --build etiss/build -j$(nproc)
         cmake --install etiss/build
 
+    - name: Add ETISS Compile Summary (Failure)
+      if: failure()
+      run: |
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "ETISS Compile Outputs: TODO" >> $GITHUB_STEP_SUMMARY
+
     - name: Download Cached GCC Binaries
+      if: success()
       id: cache-gcc
       uses: actions/cache@v4
       env:
@@ -237,7 +248,7 @@ jobs:
         #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
 
     - name: Download RISCV-GNU-Toolchain
-      if: steps.cache-gcc.outputs.cache-hit != 'true'
+      if: steps.cache-gcc.outputs.cache-hit != 'true' && success()
       run: |
          wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
          mkdir gnu
@@ -249,7 +260,7 @@ jobs:
          echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
 
     - name: Build Examples (LLVM)
-      if: ${{ matrix.toolchain == 'llvm' }}
+      if: ${{ matrix.toolchain == 'llvm' }} && success()
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
@@ -261,7 +272,7 @@ jobs:
         cmake --install build
 
     - name: Build Examples (GCC)
-      if: ${{ matrix.toolchain == 'gcc' }}
+      if: ${{ matrix.toolchain == 'gcc' }} && success()
       run: |
         # TODO: also run GCC here!
         cd etiss_riscv_examples
@@ -272,9 +283,18 @@ jobs:
         done
         cmake --install build
 
+    - name: Add ETISS SW Build Summary (Failure)
+      if: failure()
+      run: |
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "ETISS SW Build Outputs: TODO" >> $GITHUB_STEP_SUMMARY
+
     # TODO: commit etiss changes? -> Generate patch file?
 
     - name: Run Examples on ${{ matrix.config.ETISS_ARCH }}
+      if: success()
       run: |
         set -o pipefail
         for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
@@ -283,14 +303,14 @@ jobs:
         done
         set +o pipefail
 
-    - name: Add Summary (Success)
+    - name: Add ETISS Run Summary (Success)
       if: success()
       run: |
         echo "### Status" >> $GITHUB_STEP_SUMMARY
         echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
 
-    - name: Add Summary (Failure)
+    - name: Add ETISS Run Summary (Failure)
       if: failure()
       run: |
         echo "### Status" >> $GITHUB_STEP_SUMMARY
@@ -310,9 +330,11 @@ jobs:
         path: out.txt
 
     - name: Cleanup
+      if: success()
       run: rm out.txt
 
     - name: Push changes to PR branch
+      if: success()
       if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
       uses: ad-m/github-push-action@master
       with:
@@ -320,6 +342,7 @@ jobs:
         force: true
 
     - name: Create Pull Request
+      if: success()
       if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
       uses: peter-evans/create-pull-request@v6
       with:
