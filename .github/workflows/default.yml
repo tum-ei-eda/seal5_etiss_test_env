@@ -230,7 +230,7 @@ jobs:
         cmake --install etiss/build
 
     - name: Add ETISS Compile Summary (Failure)
-      if: steps.etiss-compile.outcome != 'success'
+      if: steps.cache-etiss.outputs.cache-hit != 'true' && steps.etiss-compile.outcome != 'success'
       run: |
         echo "### ETISS Compile Status" >> $GITHUB_STEP_SUMMARY
         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
