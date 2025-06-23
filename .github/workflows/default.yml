@@ -274,7 +274,7 @@ jobs:
     - name: Download LLVM Toolchain
       if: ${{ matrix.toolchain == 'llvm' && steps.cache-llvm.outputs.cache-hit != 'true' && success() }}
       run: |
-         wget https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_VERSION }}/clang+llvm-${{ env.LLVM_VERSION }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz.tar.xz -O llvm.tar.xz
+         wget https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_VERSION }}/clang+llvm-${{ env.LLVM_VERSION }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz -O llvm.tar.xz
          mkdir llvm
          cd llvm
          tar xvf ../llvm.tar.xz
