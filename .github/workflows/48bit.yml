@@ -74,165 +74,165 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-        #     - name: Install APT dependencies
-        #       run: |
-        #         sudo apt-get update
-        #         sudo apt -qq install -y python3-pip python3-venv cmake make ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
-        # 
-        #     - name: Configure Git
-        #       run: |
-        #         git config --global user.name "${GITHUB_ACTOR}"
-        #         git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-        # 
-        #     - name: Install Python dependencies
-        #       run: |
-        #         python -m pip install --upgrade pip
-        #         pip install virtualenv
-        #         echo "github.event.client_payload.ref=${{ github.event.client_payload.ref }}"
-        #         echo "github.event.client_payload.from=${{ github.event.client_payload.from }}"
-        # 
-        #     - name: Clone Repo and Submodules
-        #       uses: actions/checkout@v4
-        #       with:
-        #          submodules: recursive
-        #          fetch-depth: 0
-        # 
-        #     - name: Setup ccache
-        #       uses: hendrikmuhs/ccache-action@v1
-        #       with:
-        #         max-size: 2G
-        #         key: ubuntu-${{ matrix.ubuntu-version }}-48bit-${{ env.SEAL5_BUILD_CONFIG }}
-        #         variant: sccache
-        # 
-        #     - name: Add Summary Header
-        #       run: |
-        #         echo "### Summary" >> $GITHUB_STEP_SUMMARY
-        #         echo >> $GITHUB_STEP_SUMMARY
-        # 
-        #     - name: Update Summary (Trigger)
-        #       run: |
-        #         echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
-        #         echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
-        #         echo >> $GITHUB_STEP_SUMMARY
-        # 
-        #     # - name: Update CDSL ref
-        #     #   if: github.event.client_payload.from == 'cdsl'
-        #     #   run:
-        #     #     git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
-        #     #     git -C etiss_arch_riscv submodule update --init --recursive
-        #     #     git add etiss_arch_riscv
-        # 
-        #     # - name: Update S4E CDSL ref
-        #     #   # if: github.event.event_type == 's4e-cdsl-event'
-        #     #   if: github.event.client_payload.from == 's4e-cdsl'
-        #     #   run: |
-        #     #     git -C riscv-coredsl-extensions checkout ${{ github.event.client_payload.ref }}
-        #     #     git add riscv-coredsl-extensions
-        #     #     echo "Updated Ref: riscv-coredsl-extensions -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-        # 
-        #     # - name: Update M2-ISA-R ref
-        #     #   # if: github.event.event_type == 'm2isar-event'
-        #     #   if: github.event.client_payload.from == 'm2isar'
-        #     #   run: |
-        #     #     git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
-        #     #     git add M2-ISA-R
-        #     #     echo "Updated Ref: M2-ISA-R -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-        # 
-        #     # - name: Update Seal5 ref
-        #     #   # if: github.event.event_type == 'seal5-event'
-        #     #   if: github.event.client_payload.from == 'seal5'
-        #     #   run: |
-        #     #     git -C seal5 checkout ${{ github.event.client_payload.ref }}
-        #     #     git -C seal5 submodule update --init --recursive
-        #     #     git add seal5
-        #     #     echo "Updated Ref: seal5 -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-        # 
-        #     - name: Update Examples ref
-        #       if: github.event.client_payload.from == 'examples'
-        #       run: |
-        #         git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
-        #         git -C etiss_riscv_examples submodule update --init --recursive
-        #         git add etiss_riscv_examples
-        #         echo "Updated Ref: etiss_riscv_examples -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-        # 
-        #     - name: Update ETISS ref
-        #       if: github.event.client_payload.from == 'etiss'
-        #       run: |
-        #         git -C etiss checkout ${{ github.event.client_payload.ref }}
-        #         git add etiss
-        #         echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-        # 
-        #     - name: Update ArchImpl ref
-        #       if: github.event.client_payload.from == 'archimpl'
-        #       run: |
-        #         git -C etiss-arch-plugins checkout ${{ github.event.client_payload.ref }}
-        #         git add etiss-arch-plugins
-        #         echo "Updated Ref: etiss-arch-plugins -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-        # 
-        #     - name: Add and count changed files
-        #       id: count_files
-        #       working-directory: ./
-        #       run: |
-        #         NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
-        #         echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
-        # 
-        #     - name: Check if PR Branch already exists
-        #       if: steps.count_files.outputs.NUM_CHANGED != '0'
-        #       id: check_branch
-        #       run: |
-        #         CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
-        #         echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
-        # 
-        #     - name: Switch to PR Branch
-        #       if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
-        #       run: |
-        #         git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
-        #         # git fetch --all
-        #         git fetch origin
-        #         # git stash
-        #         # git checkout pr_update_${{ github.event.client_payload.from }}
-        #         # git checkout main  # TODO: do not hardcode
-        #         git branch -d -r origin/pr_update_${{ github.event.client_payload.from }}
-        #         git checkout -b pr_update_${{ github.event.client_payload.from }}
-        #         # git stash pop
-        # 
-        #     # - name: Create PR Branch
-        #     #   if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
-        #     #   run: |
-        #     #     git checkout -b pr_update_${{ github.event.client_payload.from }}
-        # 
-        #     - name: Commit Refs to PR branch
-        #       if: steps.count_files.outputs.NUM_CHANGED != '0'
-        #       run: |
-        #         git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
-        # 
-        # 
-        #         # - name: CDSL Workaround
-        #         #   run: |
-        #         #     # workaround for messy include paths
-        #         #     cd riscv-coredsl-extensions
-        #         #     ln -s ../etiss_arch_riscv/rv_base CoreDSL-Instruction-Set-Description
-        #         #     sed -i "s/RV32I.core_desc/RVI.core_desc/g" etiss-s4e-mac.core_desc
-        #         #     sed -i "s/\.\.\/rv_base\/RV32I.core_desc/CoreDSL-Instruction-Set-Description\/RVI.core_desc/g" s4e-mac.core_desc
-        #         #     sed -i "s/RV32I.core_desc/RVI.core_desc/g" tum_mod.core_desc
-        #         #     sed -i "s/RISCVEncoding.core_desc/CoreDSL-Instruction-Set-Description\/RISCVEncoding.core_desc/g" tum_mod.core_desc
-        #         #     sed -i "s/bool extension_enabled/bool extension_enabled2/g" tum_mod.core_desc
-        #         #     ls
-        #         #     cat etiss-s4e-mac.core_desc
-        #         #     cat s4e-mac.core_desc
-        #         #     cat tum_mod.core_desc
-        # 
-        #     - name: Get Refs
-        #       id: refs
-        #       run: |
-        #         # echo "seal5_ref=$(git -C seal5 rev-parse HEAD)" >> $GITHUB_OUTPUT
-        #         echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
-        #         echo "archimpl_ref=$(git -C etiss-arch-plugins rev-parse HEAD)" >> $GITHUB_OUTPUT
-        #         echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
-        #         # echo "s4e_examples_ref=$(git -C etiss_riscv_examples_s4e rev-parse HEAD)" >> $GITHUB_OUTPUT
-        #         # echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
-        #         # echo "cdsl-event, cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
-        #         # echo "s4e_cdsl_ref=$(git -C riscv-coredsl-extensions rev-parse HEAD)" >> $GITHUB_OUTPUT
+    - name: Install APT dependencies
+      run: |
+        sudo apt-get update
+        sudo apt -qq install -y python3-pip python3-venv cmake make ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
+
+    - name: Configure Git
+      run: |
+        git config --global user.name "${GITHUB_ACTOR}"
+        git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install virtualenv
+        echo "github.event.client_payload.ref=${{ github.event.client_payload.ref }}"
+        echo "github.event.client_payload.from=${{ github.event.client_payload.from }}"
+
+    - name: Clone Repo and Submodules
+      uses: actions/checkout@v4
+      with:
+         submodules: recursive
+         fetch-depth: 0
+
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1
+      with:
+        max-size: 2G
+        key: ubuntu-${{ matrix.ubuntu-version }}-48bit-${{ env.SEAL5_BUILD_CONFIG }}
+        variant: sccache
+
+    - name: Add Summary Header
+      run: |
+        echo "### Summary" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Update Summary (Trigger)
+      run: |
+        echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    # - name: Update CDSL ref
+    #   if: github.event.client_payload.from == 'cdsl'
+    #   run:
+    #     git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
+    #     git -C etiss_arch_riscv submodule update --init --recursive
+    #     git add etiss_arch_riscv
+
+    # - name: Update S4E CDSL ref
+    #   # if: github.event.event_type == 's4e-cdsl-event'
+    #   if: github.event.client_payload.from == 's4e-cdsl'
+    #   run: |
+    #     git -C riscv-coredsl-extensions checkout ${{ github.event.client_payload.ref }}
+    #     git add riscv-coredsl-extensions
+    #     echo "Updated Ref: riscv-coredsl-extensions -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    # - name: Update M2-ISA-R ref
+    #   # if: github.event.event_type == 'm2isar-event'
+    #   if: github.event.client_payload.from == 'm2isar'
+    #   run: |
+    #     git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
+    #     git add M2-ISA-R
+    #     echo "Updated Ref: M2-ISA-R -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    # - name: Update Seal5 ref
+    #   # if: github.event.event_type == 'seal5-event'
+    #   if: github.event.client_payload.from == 'seal5'
+    #   run: |
+    #     git -C seal5 checkout ${{ github.event.client_payload.ref }}
+    #     git -C seal5 submodule update --init --recursive
+    #     git add seal5
+    #     echo "Updated Ref: seal5 -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Update Examples ref
+      if: github.event.client_payload.from == 'examples'
+      run: |
+        git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
+        git -C etiss_riscv_examples submodule update --init --recursive
+        git add etiss_riscv_examples
+        echo "Updated Ref: etiss_riscv_examples -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Update ETISS ref
+      if: github.event.client_payload.from == 'etiss'
+      run: |
+        git -C etiss checkout ${{ github.event.client_payload.ref }}
+        git add etiss
+        echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Update ArchImpl ref
+      if: github.event.client_payload.from == 'archimpl'
+      run: |
+        git -C etiss-arch-plugins checkout ${{ github.event.client_payload.ref }}
+        git add etiss-arch-plugins
+        echo "Updated Ref: etiss-arch-plugins -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Add and count changed files
+      id: count_files
+      working-directory: ./
+      run: |
+        NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
+        echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
+
+    - name: Check if PR Branch already exists
+      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      id: check_branch
+      run: |
+        CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
+        echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
+
+    - name: Switch to PR Branch
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0'
+      run: |
+        git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
+        # git fetch --all
+        git fetch origin
+        # git stash
+        # git checkout pr_update_${{ github.event.client_payload.from }}
+        # git checkout main  # TODO: do not hardcode
+        git branch -d -r origin/pr_update_${{ github.event.client_payload.from }}
+        git checkout -b pr_update_${{ github.event.client_payload.from }}
+        # git stash pop
+
+    # - name: Create PR Branch
+    #   if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
+    #   run: |
+    #     git checkout -b pr_update_${{ github.event.client_payload.from }}
+
+    - name: Commit Refs to PR branch
+      if: steps.count_files.outputs.NUM_CHANGED != '0'
+      run: |
+        git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
+
+
+        # - name: CDSL Workaround
+        #   run: |
+        #     # workaround for messy include paths
+        #     cd riscv-coredsl-extensions
+        #     ln -s ../etiss_arch_riscv/rv_base CoreDSL-Instruction-Set-Description
+        #     sed -i "s/RV32I.core_desc/RVI.core_desc/g" etiss-s4e-mac.core_desc
+        #     sed -i "s/\.\.\/rv_base\/RV32I.core_desc/CoreDSL-Instruction-Set-Description\/RVI.core_desc/g" s4e-mac.core_desc
+        #     sed -i "s/RV32I.core_desc/RVI.core_desc/g" tum_mod.core_desc
+        #     sed -i "s/RISCVEncoding.core_desc/CoreDSL-Instruction-Set-Description\/RISCVEncoding.core_desc/g" tum_mod.core_desc
+        #     sed -i "s/bool extension_enabled/bool extension_enabled2/g" tum_mod.core_desc
+        #     ls
+        #     cat etiss-s4e-mac.core_desc
+        #     cat s4e-mac.core_desc
+        #     cat tum_mod.core_desc
+
+    - name: Get Refs
+      id: refs
+      run: |
+        # echo "seal5_ref=$(git -C seal5 rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "archimpl_ref=$(git -C etiss-arch-plugins rev-parse HEAD)" >> $GITHUB_OUTPUT
+        echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
+        # echo "s4e_examples_ref=$(git -C etiss_riscv_examples_s4e rev-parse HEAD)" >> $GITHUB_OUTPUT
+        # echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
+        # echo "cdsl-event, cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
+        # echo "s4e_cdsl_ref=$(git -C riscv-coredsl-extensions rev-parse HEAD)" >> $GITHUB_OUTPUT
         # 
         #     - name: Download Cached ETISS Binaries (S4E)
         #       id: cache-etiss
