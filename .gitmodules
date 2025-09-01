@@ -25,3 +25,6 @@
 [submodule "etiss_riscv_tests"]
 	path = etiss_riscv_tests
 	url = https://github.com/tum-ei-eda/etiss_riscv_tests
+[submodule "etiss-arch-plugins"]
+	path = etiss-arch-plugins
+	url = http://github.com/tum-ei-eda/etiss-arch-plugins.git
