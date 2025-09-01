@@ -293,7 +293,7 @@ jobs:
       if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == 'out_of_tree' }}
       run: |
         cd etiss-arch-plugins
-        cmake -B build -S . -DETISS_DIR=$(pwd)/../etiss/build/install
+        cmake -B build -S ${{ env.ETISS_ARCH }} -DETISS_DIR=$(pwd)/../etiss/build/install
         cmake --build build -j$(nproc)
         echo "${{ env.ETISS_ARCH }},$(pwd)/build/,${{ env.ETISS_ARCH }}" >> $(pwd)/../etiss/build/install/lib/plugins/list.txt
 
