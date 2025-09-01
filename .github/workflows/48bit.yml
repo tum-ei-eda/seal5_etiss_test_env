@@ -233,73 +233,73 @@ jobs:
         # echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
         # echo "cdsl-event, cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
         # echo "s4e_cdsl_ref=$(git -C riscv-coredsl-extensions rev-parse HEAD)" >> $GITHUB_OUTPUT
-# 
-#     - name: Download Cached ETISS Binaries (S4E)
-#       id: cache-etiss
-#       uses: actions/cache@v4
-#       env:
-#         cache-name: cache-etiss-binaries
-#       with:
-#         path: etiss/build/install
-#         # key: etiss-binaries-s4e-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
-#         key: etiss-binaries-48bit-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.archlib_ref }}-${{ matrix.mode }}
-# 
-#     # - name: Setup M2-ISA-R
-#     #   if: steps.cache-etiss.outputs.cache-hit != 'true'
-#     #   run: |
-#     #     cd M2-ISA-R
-#     #     virtualenv -p python${{ matrix.python-version }} venv
-#     #     source venv/bin/activate
-#     #     pip install -e .
-#     #     echo "ETISS Cache Miss -> rebuild required" >> $GITHUB_STEP_SUMMARY
-# 
-#     # - name: Run M2-ISA-R
-#     #   if: steps.cache-etiss.outputs.cache-hit != 'true'
-#     #   run: |
-#     #     cd M2-ISA-R
-#     #     source venv/bin/activate
-#     #     python -m m2isar.frontends.coredsl2.parser ../riscv-coredsl-extensions/${{ env.ETISS_TOP }}.core_desc
-#     #     python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
-# 
-#     # # - name: Upload M2ISAR Model artifacts
-#     # #   uses: actions/upload-artifact@v4
-#     # #   with:
-#     # #      name: m2isar-model-files
-#     # #      path: |
-#     # #        riscv-coredsl-extensions/gen_output
-# 
-#     # - name: Patch ETISS (S4E)
-#     #   if: steps.cache-etiss.outputs.cache-hit != 'true'
-#     #   run: |
-#     #     cp -r riscv-coredsl-extensions/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
-#     #     cd etiss
-#     #     cp ArchImpl/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
-#     #     sed -i "s/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_ARCH }}/g" ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
-#     #
-#     - name: Symlink archlib plugins
-#       if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == "integrated" }}
-#       run: |
-#         cd etiss/PluginImpl
-#         ln -s ../../etiss-arch-plugins/${{ env.ETISS_ARCH }} ${{ env.ETISS_ARCH }}
-# 
-#     - name: Build ETISS
-#       if: steps.cache-etiss.outputs.cache-hit != 'true'
-#       run: |
-#         cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
-#         cmake --build etiss/build -j$(nproc)
-#         cmake --install etiss/build
-# 
-#     - name: Build archlib plugins (out of tree)
-#       if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == "out_of_tree" }}
-#       run: |
-#         echo "A"
-#         ls etiss/build/install/
-#         echo "B"
-#         ls etiss/build/install/etiss
-#         cd /etiss-arch-plugins
-#         cmake -B build -S . -DETISS_DIR=$(pwd)/../etiss/build/install
-#         cmake --build build -j$(nproc)
-#         echo "${{ env.ETISS_ARCH }},$(pwd)/build/,${{ env.ETISS_ARCH }}" >> $(pwd)/../etiss/build/install/etiss/lib/plugins/list.txt
+
+    - name: Download Cached ETISS Binaries (S4E)
+      id: cache-etiss
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-etiss-binaries
+      with:
+        path: etiss/build/install
+        # key: etiss-binaries-s4e-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}
+        key: etiss-binaries-48bit-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref }}-${{ steps.refs.outputs.archlib_ref }}-${{ matrix.mode }}
+
+    # - name: Setup M2-ISA-R
+    #   if: steps.cache-etiss.outputs.cache-hit != 'true'
+    #   run: |
+    #     cd M2-ISA-R
+    #     virtualenv -p python${{ matrix.python-version }} venv
+    #     source venv/bin/activate
+    #     pip install -e .
+    #     echo "ETISS Cache Miss -> rebuild required" >> $GITHUB_STEP_SUMMARY
+
+    # - name: Run M2-ISA-R
+    #   if: steps.cache-etiss.outputs.cache-hit != 'true'
+    #   run: |
+    #     cd M2-ISA-R
+    #     source venv/bin/activate
+    #     python -m m2isar.frontends.coredsl2.parser ../riscv-coredsl-extensions/${{ env.ETISS_TOP }}.core_desc
+    #     python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
+
+    # # - name: Upload M2ISAR Model artifacts
+    # #   uses: actions/upload-artifact@v4
+    # #   with:
+    # #      name: m2isar-model-files
+    # #      path: |
+    # #        riscv-coredsl-extensions/gen_output
+
+    # - name: Patch ETISS (S4E)
+    #   if: steps.cache-etiss.outputs.cache-hit != 'true'
+    #   run: |
+    #     cp -r riscv-coredsl-extensions/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
+    #     cd etiss
+    #     cp ArchImpl/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
+    #     sed -i "s/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_ARCH }}/g" ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
+    #
+    - name: Symlink archlib plugins
+      if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == "integrated" }}
+      run: |
+        cd etiss/PluginImpl
+        ln -s ../../etiss-arch-plugins/${{ env.ETISS_ARCH }} ${{ env.ETISS_ARCH }}
+
+    - name: Build ETISS
+      if: steps.cache-etiss.outputs.cache-hit != 'true'
+      run: |
+        cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        cmake --build etiss/build -j$(nproc)
+        cmake --install etiss/build
+
+    - name: Build archlib plugins (out of tree)
+      if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == "out_of_tree" }}
+      run: |
+        echo "A"
+        ls etiss/build/install/
+        echo "B"
+        ls etiss/build/install/etiss
+        cd /etiss-arch-plugins
+        cmake -B build -S . -DETISS_DIR=$(pwd)/../etiss/build/install
+        cmake --build build -j$(nproc)
+        echo "${{ env.ETISS_ARCH }},$(pwd)/build/,${{ env.ETISS_ARCH }}" >> $(pwd)/../etiss/build/install/etiss/lib/plugins/list.txt
 # 
 # 
 #     # - name: Download Cached Seal5 Binaries
