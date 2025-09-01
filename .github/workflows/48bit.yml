@@ -1,4 +1,4 @@
-name: 48-bit RISC-V Flow
+name: "48-bit RISC-V Flow"
 
 on:
   workflow_dispatch: {}
