@@ -285,7 +285,7 @@ jobs:
     - name: Build ETISS
       if: steps.cache-etiss.outputs.cache-hit != 'true'
       run: |
-        cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+        cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
         cmake --build etiss/build -j$(nproc)
         cmake --install etiss/build
 
@@ -293,7 +293,7 @@ jobs:
       if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == 'out_of_tree' }}
       run: |
         cd etiss-arch-plugins
-        cmake -B build -S ${{ env.ETISS_ARCH }} -DETISS_DIR=$(pwd)/../etiss/build/install
+        cmake -B build -S ${{ env.ETISS_ARCH }} -DETISS_DIR=$(pwd)/../etiss/build/install -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
         cmake --build build -j$(nproc)
         echo "${{ env.ETISS_ARCH }},$(pwd)/build/,${{ env.ETISS_ARCH }}" >> $(pwd)/../etiss/build/install/lib/plugins/list.txt
 
