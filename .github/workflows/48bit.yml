@@ -64,8 +64,8 @@ jobs:
         python-version:
         - "3.10"
         mode:
-        - integrated
-        - out_of_tree
+        - "integrated"
+        - "out_of_tree"
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
 
