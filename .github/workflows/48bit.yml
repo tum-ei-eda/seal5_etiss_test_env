@@ -46,9 +46,9 @@ env:
   ETISS_ARCH: "RV32IMACFDK"
   ETISS_BASE_ARCH: "RV32IMACFD"
   PROGS: "hello_world,48bit_test"  # TODO: support multiple
-  ABI: ilp32
+  ABI: "ilp32d"
   TC_VERSION: "2024.09.03"
-  TC_VARIANT: "rv32gc"
+  TC_VARIANT: "rv32gc_ilp32d"
   TC_NAME: "riscv32-unknown-elf"
   TC_OS: "ubuntu"
   LLVM_REF: "llvmorg-19.1.7"
