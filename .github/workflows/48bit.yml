@@ -277,7 +277,7 @@ jobs:
     #     sed -i "s/${{ env.ETISS_BASE_ARCH }}/${{ env.ETISS_ARCH }}/g" ArchImpl/${{ env.ETISS_ARCH }}/${{ env.ETISS_ARCH }}ArchSpecificImp.cpp
     #
     - name: Symlink archlib plugins
-      if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == "integrated" }}
+      if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == 'integrated' }}
       run: |
         cd etiss/PluginImpl
         ln -s ../../etiss-arch-plugins/${{ env.ETISS_ARCH }} ${{ env.ETISS_ARCH }}
@@ -290,7 +290,7 @@ jobs:
         cmake --install etiss/build
 
     - name: Build archlib plugins (out of tree)
-      if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == "out_of_tree" }}
+      if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.mode == 'out_of_tree' }}
       run: |
         echo "A"
         ls etiss/build/install/
