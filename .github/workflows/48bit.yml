@@ -300,143 +300,143 @@ jobs:
         cmake -B build -S . -DETISS_DIR=$(pwd)/../etiss/build/install
         cmake --build build -j$(nproc)
         echo "${{ env.ETISS_ARCH }},$(pwd)/build/,${{ env.ETISS_ARCH }}" >> $(pwd)/../etiss/build/install/etiss/lib/plugins/list.txt
-# 
-# 
-#     # - name: Download Cached Seal5 Binaries
-#     #   id: cache-seal5
-#     #   uses: actions/cache@v4
-#     #   env:
-#     #     cache-name: cache-seal5-binaries
-#     #   with:
-#     #     path: ${{ env.SEAL5_LLVM_DIR }}.tar.xz
-#     #     # path: ${{ env.SEAL5_OUT_DIR }}/seal5_llvm_install
-#     #     key: seal5-binaries-s4e-${{ matrix.ubuntu-version }}-${{ matrix.python-version }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}-${{ env.SEAL5_BUILD_CONFIG }}
-#     #     # restore-keys: |
-#     #     #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
-#     #     #   seal5-binaries-${{ github.event.client_payload.name }}-
-# 
-#     # - name: Setup Seal5
-#     #   if: steps.cache-seal5.outputs.cache-hit != 'true'
-#     #   run: |
-#     #     cd seal5
-#     #     virtualenv -p python${{ matrix.python-version }} venv
-#     #     source venv/bin/activate
-#     #     pip install -r requirements.txt
-#     #     pip install -e .
-#     #     echo "Seal5 Cache Miss -> rebuild required" >> $GITHUB_STEP_SUMMARY
-# 
-#     # - name: Run Seal5 S4E Demo
-#     #   if: steps.cache-seal5.outputs.cache-hit != 'true'
-#     #   run: |
-#     #     cd seal5/
-#     #     source venv/bin/activate
-#     #     export PYTHONPATH=$(pwd)
-#     #     OUT_DIR=${{ env.SEAL5_OUT_DIR }} DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
-#     #     cd ${{ env.SEAL5_LLVM_DIR }}
-#     #     XZ_OPT='-T0 -9' tar -cJf ${{ env.SEAL5_LLVM_DIR }}.tar.xz .
-#     #     cd -
-# 
-#     # - name: Unpack Seal5 Archive
-#     #   if: steps.cache-seal5.outputs.cache-hit == 'true'
-#     #   run: |
-#     #     mkdir ${{ env.SEAL5_LLVM_DIR }}
-#     #     cd ${{ env.SEAL5_LLVM_DIR }}
-#     #     tar xf ${{ env.SEAL5_LLVM_DIR }}.tar.xz
-#     #     cd -
-#     #     echo "Seal5 Cache Hit -> unpacking artifact" >> $GITHUB_STEP_SUMMARY
-# 
-#     - name: Get current date
-#       run: |
-#         echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-#       id: date
-# 
-#     - name: Download Cached GCC Binaries
-#       id: cache-gcc
-#       uses: actions/cache@v4
-#       env:
-#         cache-name: cache-gcc-binaries
-#       with:
-#         path: gnu/  # TODO: move?
-#         key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date }}
-#         # restore-keys: |
-#         #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
-# 
-#     - name: Download RISCV-GNU-Toolchain
-#       if: steps.cache-gcc.outputs.cache-hit != 'true'
-#       run: |
-#         wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
-#         mkdir gnu
-#         cd gnu
-#         tar xvf ../gnu.tar.xz
-#         cd ..
-#         rm gnu.tar.xz
-#         ls gnu
-#         echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
-# 
-#     - name: Build Examples
-#       run: |
-#         # export PATH=$SEAL5_LLVM_DIR/.seal5/build/${{ env.SEAL5_BUILD_CONFIG }}/bin/:$PATH
-#         # TODO: llvm vs. gcc?
-#         cd etiss_riscv_examples
-#         cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
-#         for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
-#             echo "prog=$prog"
-#             cmake --build build -j$(nproc) -t $prog
-#         done
-#         cmake --install build
-# 
-#     # TODO: commit etiss changes? -> Generate patch file?
-# 
-#     - name: Run Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
-#       run: |
-#         set -o pipefail
-#         for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
-#             echo "--- Program: $prog ---" | tee -a out.txt
-#             etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee -a out.txt
-#         done
-#         set +o pipefail
-# 
-#     - name: Add Summary (Success)
-#       if: success()
-#       run: |
-#         echo "### Status" >> $GITHUB_STEP_SUMMARY
-#         echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
-#         echo >> $GITHUB_STEP_SUMMARY
-# 
-#     - name: Add Summary (Failure)
-#       if: failure()
-#       run: |
-#         echo "### Status" >> $GITHUB_STEP_SUMMARY
-#         echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
-#         echo >> $GITHUB_STEP_SUMMARY
-#         echo "ETISS Sim Outputs:" >> $GITHUB_STEP_SUMMARY
-#         cat out.txt >> $GITHUB_STEP_SUMMARY
-#         echo >> $GITHUB_STEP_SUMMARY
-#         echo "- - -" >> $GITHUB_STEP_SUMMARY
-#         echo >> $GITHUB_STEP_SUMMARY
-# 
-#     - name: Upload ETISS Outputs
-#       uses: actions/upload-artifact@v4
-#       with:
-#         name: etiss-output-48bit-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
-#         path: out.txt
-# 
-#     - name: Cleanup
-#       run: rm out.txt
-# 
-#     - name: Push changes to PR branch
-#       if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && github.event.client_payload.is_pr != 'true'
-#       uses: ad-m/github-push-action@master
-#       with:
-#         # github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-#         branch: pr_update_${{ github.event.client_payload.from }}
-#         force: true
-# 
-#     - name: Create Pull Request
-#       if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0' && github.event.client_payload.is_pr != 'true'
-#       uses: peter-evans/create-pull-request@v6
-#       with:
-#         commit-message: "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
-#         title: "Auto-Update ${{ github.event.client_payload.from }} submodule"
-#         branch: pr_update_${{ github.event.client_payload.from }}
-#         # token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+
+
+    # - name: Download Cached Seal5 Binaries
+    #   id: cache-seal5
+    #   uses: actions/cache@v4
+    #   env:
+    #     cache-name: cache-seal5-binaries
+    #   with:
+    #     path: ${{ env.SEAL5_LLVM_DIR }}.tar.xz
+    #     # path: ${{ env.SEAL5_OUT_DIR }}/seal5_llvm_install
+    #     key: seal5-binaries-s4e-${{ matrix.ubuntu-version }}-${{ matrix.python-version }}-${{ steps.refs.outputs.seal5_ref }}-${{ steps.refs.outputs.s4e_cdsl_ref }}-${{ env.SEAL5_BUILD_CONFIG }}
+    #     # restore-keys: |
+    #     #   seal5-binaries-${{ github.event.client_payload.name }}-${{ matrix.ubuntu-version }}-
+    #     #   seal5-binaries-${{ github.event.client_payload.name }}-
+
+    # - name: Setup Seal5
+    #   if: steps.cache-seal5.outputs.cache-hit != 'true'
+    #   run: |
+    #     cd seal5
+    #     virtualenv -p python${{ matrix.python-version }} venv
+    #     source venv/bin/activate
+    #     pip install -r requirements.txt
+    #     pip install -e .
+    #     echo "Seal5 Cache Miss -> rebuild required" >> $GITHUB_STEP_SUMMARY
+
+    # - name: Run Seal5 S4E Demo
+    #   if: steps.cache-seal5.outputs.cache-hit != 'true'
+    #   run: |
+    #     cd seal5/
+    #     source venv/bin/activate
+    #     export PYTHONPATH=$(pwd)
+    #     OUT_DIR=${{ env.SEAL5_OUT_DIR }} DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
+    #     cd ${{ env.SEAL5_LLVM_DIR }}
+    #     XZ_OPT='-T0 -9' tar -cJf ${{ env.SEAL5_LLVM_DIR }}.tar.xz .
+    #     cd -
+
+    # - name: Unpack Seal5 Archive
+    #   if: steps.cache-seal5.outputs.cache-hit == 'true'
+    #   run: |
+    #     mkdir ${{ env.SEAL5_LLVM_DIR }}
+    #     cd ${{ env.SEAL5_LLVM_DIR }}
+    #     tar xf ${{ env.SEAL5_LLVM_DIR }}.tar.xz
+    #     cd -
+    #     echo "Seal5 Cache Hit -> unpacking artifact" >> $GITHUB_STEP_SUMMARY
+
+    - name: Get current date
+      run: |
+        echo "date=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+      id: date
+
+    - name: Download Cached GCC Binaries
+      id: cache-gcc
+      uses: actions/cache@v4
+      env:
+        cache-name: cache-gcc-binaries
+      with:
+        path: gnu/  # TODO: move?
+        key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date }}
+        # restore-keys: |
+        #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
+
+    - name: Download RISCV-GNU-Toolchain
+      if: steps.cache-gcc.outputs.cache-hit != 'true'
+      run: |
+        wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
+        mkdir gnu
+        cd gnu
+        tar xvf ../gnu.tar.xz
+        cd ..
+        rm gnu.tar.xz
+        ls gnu
+        echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
+
+    - name: Build Examples
+      run: |
+        # export PATH=$SEAL5_LLVM_DIR/.seal5/build/${{ env.SEAL5_BUILD_CONFIG }}/bin/:$PATH
+        # TODO: llvm vs. gcc?
+        cd etiss_riscv_examples
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
+        for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
+            echo "prog=$prog"
+            cmake --build build -j$(nproc) -t $prog
+        done
+        cmake --install build
+
+    # TODO: commit etiss changes? -> Generate patch file?
+
+    - name: Run Example ${{ env.PROG }} on ${{ env.ETISS_ARCH }}
+      run: |
+        set -o pipefail
+        for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
+            echo "--- Program: $prog ---" | tee -a out.txt
+            etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee -a out.txt
+        done
+        set +o pipefail
+
+    - name: Add Summary (Success)
+      if: success()
+      run: |
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Add Summary (Failure)
+      if: failure()
+      run: |
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "ETISS Sim Outputs:" >> $GITHUB_STEP_SUMMARY
+        cat out.txt >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "- - -" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Upload ETISS Outputs
+      uses: actions/upload-artifact@v4
+      with:
+        name: etiss-output-48bit-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ env.ARCH }}-${{ env.ABI }}
+        path: out.txt
+
+    - name: Cleanup
+      run: rm out.txt
+
+    - name: Push changes to PR branch
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && github.event.client_payload.is_pr != 'true'
+      uses: ad-m/github-push-action@master
+      with:
+        # github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+        branch: pr_update_${{ github.event.client_payload.from }}
+        force: true
+
+    - name: Create Pull Request
+      if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0' && github.event.client_payload.is_pr != 'true'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        commit-message: "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
+        title: "Auto-Update ${{ github.event.client_payload.from }} submodule"
+        branch: pr_update_${{ github.event.client_payload.from }}
+        # token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
