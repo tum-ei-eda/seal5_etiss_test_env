@@ -310,7 +310,7 @@ jobs:
                   rm stats.json
               fi
           done
-          jq -s '.' stats*.json > combined_stats.json
+          jq -s '[.[][]?]' stats*.json > combined_stats.json
           set +o pipefail
       - name: Add ETISS SW Run Summary (Failure)
         if: steps.etiss-run-sw.outcome != 'success'
