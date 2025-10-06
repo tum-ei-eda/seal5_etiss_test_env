@@ -538,6 +538,8 @@ jobs:
           branch: pr_update_${{ github.event.client_payload.from }}
           force: true
           github_token: ${{ github.token }}
+      - name: Fetch all branches
+        run: git fetch --all
       - name: Create Pull Request
         if: steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED
           != '0' && success() && github.event.client_payload.is_pr != 'true'
