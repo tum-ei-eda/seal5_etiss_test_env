@@ -541,11 +541,11 @@ jobs:
       - name: Fetch all branches
         run: |
           git fetch --all
-          git checkout -b temp
+          # git checkout -b temp
       - name: Create Pull Request
         if: steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED
           != '0' && success() && github.event.client_payload.is_pr != 'true'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           commit-message: Auto-Update ${{ github.event.client_payload.from }} submodule
             to ${{ github.event.client_payload.ref }}
