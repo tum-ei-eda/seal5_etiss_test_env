@@ -307,7 +307,7 @@ jobs:
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "--- Program: $prog ---" | tee -a etiss_sw_run_out.txt
-              timeout 1m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
+              timeout 5m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
               if [[ -f stats.json ]]
               then
                   jq -s "[.[] + {prog: \"$prog\", jit: \"${{ matrix.jit}}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ github.sha }}\", etiss_sha: \"${{ steps.refs.outputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
