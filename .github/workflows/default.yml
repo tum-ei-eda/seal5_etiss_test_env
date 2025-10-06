@@ -300,12 +300,13 @@ jobs:
         continue-on-error: true
         run: |
           set -o pipefail
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
               echo "--- Program: $prog ---" | tee -a etiss_sw_run_out.txt
               timeout 1m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
               if [[ -f stats.json ]]
               then
-                  jq -s "[.[] + {prog: \"$prog\", jit: \"${{ matrix.jit}}\"}]" stats.json > stats_$prog.json
+                  jq -s "[.[] + {prog: \"$prog\", jit: \"${{ matrix.jit}}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ github.sha }}\", etiss_sha: \"${{ steps.refs.outputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
                   rm stats.json
               fi
           done
@@ -543,6 +544,7 @@ jobs:
           branch: pr_update_${{ github.event.client_payload.from }}
 
   stats:
+    if: github.event_name == 'push'
     needs: [flow]
     runs-on: ubuntu-latest
     steps:
@@ -557,8 +559,7 @@ jobs:
       - name: Clone Repo and Submodules
         uses: actions/checkout@v4
         with:
-          submodules: recursive
-          fetch-depth: 0
+          ref: stats
       - name: Add Summary Header
         run: |
           echo "### Stats" >> $GITHUB_STEP_SUMMARY
@@ -569,5 +570,4 @@ jobs:
           path: ./artifacts
       - name: Check stats
         run: |
-          ls artifacts
-          ls artifacts/*
+          ls artifacts/etiss-stats*
