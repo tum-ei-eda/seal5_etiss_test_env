@@ -548,10 +548,10 @@ jobs:
     needs: [flow]
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.10"
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -570,4 +570,18 @@ jobs:
           path: ./artifacts
       - name: Check stats
         run: |
-          ls artifacts/etiss-stats*
+          python3 -m pip install -r requirements.txt
+          mkdir -p data
+          cp -r artifacts/etiss-stats* data
+          rm -rf artifacts
+          ./scripts/update_history.sh
+      - name: Commit Stats
+        if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
+        run: |
+          git add data
+          git commit -m "Update stats"
+      - name: Push changes to stats branch
+        uses: ad-m/github-push-action@master
+        with:
+          branch: stats
+          # force: true
