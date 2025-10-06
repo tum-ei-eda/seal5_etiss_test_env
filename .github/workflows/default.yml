@@ -575,6 +575,7 @@ jobs:
           cp -r artifacts/etiss-stats* data
           rm -rf artifacts
           ./scripts/update_history.sh
+          find data -name "history.json" -exec python3 scripts/plot_history.py {} \;
       - name: Commit Stats
         if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
         run: |
