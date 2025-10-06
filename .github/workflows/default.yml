@@ -134,6 +134,7 @@ jobs:
       if: github.event.client_payload.from == 'etiss' && success()
       run: |
         git -C etiss checkout ${{ github.event.client_payload.ref }}
+        git -C etiss submodule update --init --recursive
         git add etiss
         echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
 
