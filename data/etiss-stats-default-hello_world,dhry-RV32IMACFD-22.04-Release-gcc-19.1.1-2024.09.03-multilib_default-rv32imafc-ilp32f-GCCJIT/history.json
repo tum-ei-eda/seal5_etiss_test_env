@@ -1,0 +1,24 @@
+[
+  {
+    "mips": 10.9921,
+    "Simulation_Time": 23.8414,
+    "CPU_Time": 8.18962,
+    "CPU_cycle": 262068000,
+    "prog": "dhry",
+    "jit": "GCC",
+    "timestamp": "2025-10-06T09:46:05Z",
+    "env_sha": "ec8e4dc4987971f6ef10538de4b64e16eaf4b836",
+    "etiss_sha": "1c98836c44693e9081874dfec54796c3bd023f75"
+  },
+  {
+    "mips": 0.000343252,
+    "Simulation_Time": 7.14345,
+    "CPU_Time": 0.000076625,
+    "CPU_cycle": 2452,
+    "prog": "hello_world",
+    "jit": "GCC",
+    "timestamp": "2025-10-06T09:46:05Z",
+    "env_sha": "ec8e4dc4987971f6ef10538de4b64e16eaf4b836",
+    "etiss_sha": "1c98836c44693e9081874dfec54796c3bd023f75"
+  }
+]
