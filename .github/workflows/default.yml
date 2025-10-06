@@ -500,7 +500,7 @@ jobs:
             echo "PR_EXISTS=0" >> $GITHUB_OUTPUT
           fi
       - name: Switch to PR Branch
-        if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
+        if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
           != '0' && success()
         run: |
           git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
@@ -531,7 +531,7 @@ jobs:
           echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
       - name: Push changes to PR branch
-        if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
+        if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
           != '0' && success() && github.event.client_payload.is_pr != 'true'
         uses: ad-m/github-push-action@master
         with:
