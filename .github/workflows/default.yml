@@ -37,6 +37,9 @@ env:
   LLVM_VERSION: 19.1.1
   ETISS_TOP: top
   PROGS: hello_world,dhry,tvm_vww,embench_crc32
+permissions:
+  contents: write
+  workflows: write
 jobs:
   flow:
     strategy:
@@ -533,6 +536,7 @@ jobs:
         with:
           branch: pr_update_${{ github.event.client_payload.from }}
           force: true
+          github_token: ${{ github.token }}
       - name: Create Pull Request
         if: steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED
           != '0' && success() && github.event.client_payload.is_pr != 'true'
