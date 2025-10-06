@@ -539,7 +539,9 @@ jobs:
           force: true
           github_token: ${{ github.token }}
       - name: Fetch all branches
-        run: git fetch --all
+        run: |
+          git fetch --all
+          git checkout -b temp
       - name: Create Pull Request
         if: steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED
           != '0' && success() && github.event.client_payload.is_pr != 'true'
@@ -549,7 +551,7 @@ jobs:
             to ${{ github.event.client_payload.ref }}
           title: Auto-Update ${{ github.event.client_payload.from }} submodule
           branch: pr_update_${{ github.event.client_payload.from }}
-          base: main
+          # base: main
 
   stats:
     if: github.event_name == 'push'
