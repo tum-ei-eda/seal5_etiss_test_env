@@ -15,10 +15,12 @@ do
     # Create history.json if it doesn't exist
     if [ ! -f "$HISTORY_FILE" ]; then
       echo "[]" > "$HISTORY_FILE"
+      echo "Created new $HISTORY_FILE"
     fi
 
     # Append new data to existing history.json
-    jq -s '.[0] + .[1]' "$HISTORY_FILE" "$COMBINED_FILE" > "${HISTORY_FILE}.tmp" && mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE"
+    # jq -s '.[0] + .[1]' "$HISTORY_FILE" "$COMBINED_FILE" > "${HISTORY_FILE}.tmp" && mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE"
+    jq -s '[.[][]?]' "$HISTORY_FILE" "$COMBINED_FILE" > "${HISTORY_FILE}.tmp" && mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE"
     echo "Updated $HISTORY_FILE with $(jq length "$HISTORY_FILE") entries"
     rm $COMBINED_FILE
 done
