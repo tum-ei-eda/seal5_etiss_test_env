@@ -261,7 +261,7 @@ jobs:
           cd etiss_riscv_examples
           export PATH=$(pwd)/../llvm/bin/:$PATH
           cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} 2>&1 | tee -a etiss_sw_build_out.txt
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
+          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
               cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
           done
@@ -276,7 +276,7 @@ jobs:
           set -o pipefail
           cd etiss_riscv_examples
           cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} 2>&1 | tee -a etiss_sw_build_out.txt
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
+          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
               cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
           done
@@ -305,7 +305,7 @@ jobs:
         run: |
           set -o pipefail
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
+          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "--- Program: $prog ---" | tee -a etiss_sw_run_out.txt
               timeout 1m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
               if [[ -f stats.json ]]

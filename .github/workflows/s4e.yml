@@ -352,7 +352,7 @@ jobs:
           # chmod +x $SEAL5_LLVM_DIR/bin/*
           cd etiss_riscv_examples_s4e
           cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv32gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ env.ARCH }} -DRISCV_ABI=${{ env.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ env.RISCV_GCC_NAME }}
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
+          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "prog=$prog"
               cmake --build build -j$(nproc) -t $prog
           done
@@ -372,7 +372,7 @@ jobs:
           # export LD_LIBRARY_PATH=$ETISS_PREBUILT_DIR/lib:$ETISS_PREBUILT_DIR/lib/plugins:$LD_LIBRRARY_PATH
           # export PATH=$ETISS_PREBUILT_DIR/bin/:$PATH
           set -o pipefail
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /'); do
+          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "--- Program: $prog ---" | tee -a out.txt
               etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples_s4e/build/install/ini/$prog.ini --arch.cpu=${{ env.ETISS_ARCH }} 2>&1 | tee -a out.txt
           done
