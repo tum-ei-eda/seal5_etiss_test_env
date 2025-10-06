@@ -178,6 +178,8 @@ jobs:
 
     - name: Check if PR Branch already exists
       if: steps.count_files.outputs.NUM_CHANGED != '0'
+      env:
+        GH_TOKEN: ${{ github.token }}
       id: check_branch
       run: |
         CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
