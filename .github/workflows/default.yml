@@ -505,6 +505,15 @@ jobs:
       run: |
         CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
         echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT   #1 if branch exists, 0 if not
+        prs=$(gh pr list -B main -H pr_update_${{ github.event.client_payload.from }})
+        echo Size of PRS ARRAY: ${#prs[@]}
+        echo Length of PRS[0] string: ${#prs[0]}
+        if ((${#prs[@]} > 0 && ${#prs[0]} != 0 )); then
+          echo skipping PR creation
+          echo "PR_EXISTS=1" >> $GITHUB_OUTPUT
+        else
+          echo "PR_EXISTS=0" >> $GITHUB_OUTPUT
+        fi
 
     - name: Switch to PR Branch
       if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED != '0' && success()
@@ -547,7 +556,7 @@ jobs:
         force: true
 
     - name: Create Pull Request
-      if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0' && success() && github.event.client_payload.is_pr != 'true'
+      if: steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0' && success() && github.event.client_payload.is_pr != 'true'
       uses: peter-evans/create-pull-request@v6
       with:
         commit-message: "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
