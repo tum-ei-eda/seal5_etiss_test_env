@@ -42,5 +42,27 @@
     "timestamp": "2025-10-06T09:58:04Z",
     "env_sha": "fcc71f802c22f1c66ee0441253c66a21cf961b77",
     "etiss_sha": "ea9c1082b1e1788d20b9881d7a007961bdb275c7"
+  },
+  {
+    "mips": 55.8559,
+    "Simulation_Time": 4.24417,
+    "CPU_Time": 7.40818,
+    "CPU_cycle": 237062000,
+    "prog": "dhry",
+    "jit": "TCC",
+    "timestamp": "2025-10-06T10:04:21Z",
+    "env_sha": "a9dc6d2256eccf787a6577e0f0e9e9f4790a278f",
+    "etiss_sha": "b24bc484d1498d6cdc4587a4dbd246adce0e5f26"
+  },
+  {
+    "mips": 0.0118813,
+    "Simulation_Time": 0.217064,
+    "CPU_Time": 0.0000805938,
+    "CPU_cycle": 2579,
+    "prog": "hello_world",
+    "jit": "TCC",
+    "timestamp": "2025-10-06T10:04:21Z",
+    "env_sha": "a9dc6d2256eccf787a6577e0f0e9e9f4790a278f",
+    "etiss_sha": "b24bc484d1498d6cdc4587a4dbd246adce0e5f26"
   }
 ]
