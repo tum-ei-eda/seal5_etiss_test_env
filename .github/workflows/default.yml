@@ -36,7 +36,7 @@ env:
   TC_OS: ubuntu
   LLVM_VERSION: 19.1.1
   ETISS_TOP: top
-  PROGS: hello_world,dhry
+  PROGS: hello_world,dhry,tvm_vww
 jobs:
   flow:
     strategy:
