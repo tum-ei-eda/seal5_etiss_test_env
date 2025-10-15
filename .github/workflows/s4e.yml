@@ -462,7 +462,7 @@ jobs:
         run: |
           ls artifacts
           ls artifacts/*
-          if [[ -f artifacts/llvm.patch ]]
+          if [[ -f artifacts/seal5-patch-s4e-${{ env.LLVM_REF }}/llvm.patch ]]
           then
             echo "exists"
             PATCH_EXISTS=1
@@ -483,7 +483,7 @@ jobs:
         run: |
           # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
           cd llvm_fork
-          git apply ../artifacts/llvm.patch
+          git apply ../artifacts/seal5-patch-s4e-${{ env.LLVM_REF }}/llvm.patch
           git commit -m 'Apply Seal5 Patches'
           git tag ${{ env.LLVM_FORK_TAG }}
           git push origin +${{ env.LLVM_FORK_TAG }}
