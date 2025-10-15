@@ -302,14 +302,14 @@ jobs:
           OUT_DIR=${{ env.SEAL5_OUT_DIR }} DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
           cd ${{ env.SEAL5_LLVM_DIR }}
           XZ_OPT='-T0 -9' tar -cJf ${{ env.SEAL5_LLVM_DIR }}.tar.xz .
-          git diff ${{ env.LLVM_REF }} > ${{ env.SEAL5_LLVM_DIR }}.patch
+          git diff ${{ env.LLVM_REF }} > ../llvm.patch
           cd -
       - name: Upload LLVM Patch
         if: steps.cache-seal5.outputs.cache-hit != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: seal5-patch-s4e-${{ env.LLVM_REF }}
-          path: ${{ env.SEAL5_LLVM_DIR }}.patch
+          path: llvm.patch
       - name: Unpack Seal5 Archive
         if: steps.cache-seal5.outputs.cache-hit == 'true'
         run: |
@@ -462,7 +462,14 @@ jobs:
         run: |
           ls artifacts
           ls artifacts/*
-          PATCH_EXISTS=0
+          if [[ -f artifacts/llvm.patch ]]
+          then
+            echo "exists"
+            PATCH_EXISTS=1
+          else
+            echo "not exists"
+            PATCH_EXISTS=0
+          fi
           echo "PATCH_EXISTS=$PATCH_EXISTS" >> $GITHUB_OUTPUT
       - name: Clone LLVM Fork
         if: steps.check_patch.outputs.PATCH_EXISTS != '0'
@@ -476,7 +483,7 @@ jobs:
         run: |
           # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
           cd llvm_fork
-          git apply ../llvm.patch
+          git apply ../artifacts/llvm.patch
           git commit -m 'Apply Seal5 Patches'
           git tag ${{ env.LLVM_FORK_TAG }}
           git push origin +${{ env.LLVM_FORK_TAG }}
