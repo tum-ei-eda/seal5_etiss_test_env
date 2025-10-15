@@ -457,7 +457,7 @@ jobs:
           # path: llvm.patch
           # name: seal5-patch-s4e-${{ env.LLVM_REF }}
           path: artifacts/
-      - name: Check existance
+      - name: Check patch existance
         id: check_patch
         run: |
           ls artifacts
@@ -478,13 +478,61 @@ jobs:
           repository: ${{ env.LLVM_FORK }}
           path: llvm_fork
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-      - name: Clone LLVM Fork + Apply Patch + Create Tag + Push Tag
+          ref: ${{ env.LLVM_REF }}
+      - name: Check tag existance
+        id: check_tag
+        run: |
+          cd llvm_fork
+          TAG="${{ env.LLVM_FORK_TAG }}"
+          git show-ref --tags --verify --quiet "refs/tags/${TAG}"
+          exit_code=$?
+          echo exit_code=${exit_code}
+          if [[ $exit_code -eq 0 ]]; then
+            echo "Tag ${TAG} exists"
+            TAG_EXISTS=1
+          else
+            echo "Tag ${TAG} does not exist"
+            TAG_EXISTS=0
+          fi
+          echo "TAG_EXISTS=$TAG_EXISTS" >> $GITHUB_OUTPUT
+          cd -
+      - name: Clone LLVM Fork + Apply Patch
         if: steps.check_patch.outputs.PATCH_EXISTS != '0'
         run: |
           # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
           cd llvm_fork
           git apply ../artifacts/seal5-patch-s4e-${{ env.LLVM_REF }}/llvm.patch
           git commit -m 'Apply Seal5 Patches'
+          cd -
+      - name: Check Diff
+        id: check_diff
+        run: |
+          cd llvm_fork
+          TAG=${{ env.LLVM_FORK_TAG }}
+          length=$(git diff origin/$TAG)
+          echo exit_code=${exit_code}
+          if [[ "$length" == "0" ]]; then
+            echo "Diff is empty"
+            DIFF_EMPTY=1
+          else
+            echo "Diff is not empty"
+            DIFF_EMPTY=0
+          fi
+          echo "DIFF_EMPTY=$DIFF_EMPTY" >> $GITHUB_OUTPUT
+          cd -
+      - name: Create Tag + Push Tag
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_tag.outputs.TAG_EXISTS != '0' }}
+        run: |
+          # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
+          cd llvm_fork
+          git tag ${{ env.LLVM_FORK_TAG }}
+          git push origin ${{ env.LLVM_FORK_TAG }}
+          cd -
+      - name: Create Tag + Force Push Tag
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_tag.outputs.TAG_EXISTS != '1' && steps.check_diff.outputs.DIFF_EMPTY != '0' }}
+        run: |
+          # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
+          cd llvm_fork
           git tag ${{ env.LLVM_FORK_TAG }}
           git push origin +${{ env.LLVM_FORK_TAG }}
           cd -
