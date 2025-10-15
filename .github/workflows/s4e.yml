@@ -446,7 +446,7 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.10"
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -457,6 +457,7 @@ jobs:
           # path: llvm.patch
           # name: seal5-patch-s4e-${{ env.LLVM_REF }}
           path: artifacts/
+          github-token: ${{ github.token }}
       - name: Check patch existance
         id: check_patch
         run: |
@@ -478,14 +479,19 @@ jobs:
           repository: ${{ env.LLVM_FORK }}
           path: llvm_fork
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-          ref: ${{ env.LLVM_REF }}
       - name: Check tag existance
         id: check_tag
         run: |
           cd llvm_fork
-          TAG="${{ env.LLVM_FORK_TAG }}"
+          git remote add upstream https://github.com/llvm/llvm-project.git
+          git fetch upstream tag ${{ env.LLVM_REF }} --no-tags --depth=1
+          git checkout ${{ env.LLVM_REF }}
+          TAG=${{ env.LLVM_FORK_TAG }}
+          git fetch origin --tags
+          set +e
           git show-ref --tags --verify --quiet "refs/tags/${TAG}"
           exit_code=$?
+          set -e
           echo exit_code=${exit_code}
           if [[ $exit_code -eq 0 ]]; then
             echo "Tag ${TAG} exists"
@@ -502,14 +508,16 @@ jobs:
           # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
           cd llvm_fork
           git apply ../artifacts/seal5-patch-s4e-${{ env.LLVM_REF }}/llvm.patch
+          git add .
           git commit -m 'Apply Seal5 Patches'
           cd -
       - name: Check Diff
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_tag.outputs.TAG_EXISTS == '1' }}
         id: check_diff
         run: |
           cd llvm_fork
           TAG=${{ env.LLVM_FORK_TAG }}
-          length=$(git diff origin/$TAG)
+          length=$(git diff $TAG)
           echo exit_code=${exit_code}
           if [[ "$length" == "0" ]]; then
             echo "Diff is empty"
@@ -521,7 +529,7 @@ jobs:
           echo "DIFF_EMPTY=$DIFF_EMPTY" >> $GITHUB_OUTPUT
           cd -
       - name: Create Tag + Push Tag
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_tag.outputs.TAG_EXISTS != '0' }}
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_tag.outputs.TAG_EXISTS == '0' }}
         run: |
           # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
           cd llvm_fork
@@ -529,7 +537,7 @@ jobs:
           git push origin ${{ env.LLVM_FORK_TAG }}
           cd -
       - name: Create Tag + Force Push Tag
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_tag.outputs.TAG_EXISTS != '1' && steps.check_diff.outputs.DIFF_EMPTY != '0' }}
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_tag.outputs.TAG_EXISTS == '1' && steps.check_diff.outputs.DIFF_EMPTY != '0' }}
         run: |
           # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
           cd llvm_fork
