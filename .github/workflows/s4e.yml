@@ -52,6 +52,8 @@ env:
   TC_NAME: riscv32-unknown-elf
   TC_OS: ubuntu
   LLVM_REF: llvmorg-19.1.7
+  LLVM_FORK: tum-ei-eda/llvm-project
+  LLVM_FORK_TAG: seal5_s4e_llvmorg-19.1.7
 jobs:
   flow:
     strategy:
@@ -300,7 +302,14 @@ jobs:
           OUT_DIR=${{ env.SEAL5_OUT_DIR }} DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
           cd ${{ env.SEAL5_LLVM_DIR }}
           XZ_OPT='-T0 -9' tar -cJf ${{ env.SEAL5_LLVM_DIR }}.tar.xz .
+          git diff ${{ env.LLVM_REF }} > ${{ env.SEAL5_LLVM_DIR }}.patch
           cd -
+      - name: Upload LLVM Patch
+        if: steps.cache-seal5.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: seal5-patch-s4e-${{ env.LLVM_REF }}
+          path: ${{ env.SEAL5_LLVM_DIR }}.patch
       - name: Unpack Seal5 Archive
         if: steps.cache-seal5.outputs.cache-hit == 'true'
         run: |
@@ -402,7 +411,16 @@ jobs:
             env.ARCH }}-${{ env.ABI }}
           path: out.txt
       - name: Cleanup
-        run: rm out.txt
+        run: |
+          rm out.txt
+          cd riscv-coredsl-extensions
+          git clean -f
+          git restore .
+          cd -
+          cd etiss
+          git clean -f
+          git restore .
+          cd -
       - name: Push changes to PR branch
         if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
           != '0' && github.event.client_payload.is_pr != 'true'
@@ -421,3 +439,45 @@ jobs:
           title: Auto-Update ${{ github.event.client_payload.from }} submodule
           branch: pr_update_${{ github.event.client_payload.from }}
           # token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+  publish:
+    needs: [flow]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Download Artifacts
+        uses: actions/download-artifact@v5
+        with:
+          # path: llvm.patch
+          # name: seal5-patch-s4e-${{ env.LLVM_REF }}
+          path: artifacts/
+      - name: Check existance
+        id: check_patch
+        run: |
+          ls artifacts
+          ls artifacts/*
+          PATCH_EXISTS=0
+          echo "PATCH_EXISTS=$PATCH_EXISTS" >> $GITHUB_OUTPUT
+      - name: Clone LLVM Fork
+        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.LLVM_FORK }}
+          path: llvm_fork
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+      - name: Clone LLVM Fork + Apply Patch + Create Tag + Push Tag
+        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
+        run: |
+          # git clone ${{ env.LLVM_FORK_URL }} llvm_fork
+          cd llvm_fork
+          git apply ../llvm.patch
+          git commit -m 'Apply Seal5 Patches'
+          git tag ${{ env.LLVM_FORK_TAG }}
+          git push origin +${{ env.LLVM_FORK_TAG }}
+          cd -
