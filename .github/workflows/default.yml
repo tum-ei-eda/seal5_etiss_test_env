@@ -647,7 +647,7 @@ jobs:
           cd etiss
           CHECK_BRANCH=$(git ls-remote --heads origin ${{ env.ETISS_BRANCH_NAME }} | wc -l 2>&1)
           echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT  # 1 if branch exists, 0 if not
-          prs=$(gh pr list -B main -H ${{ env.ETISS_BRANCH_NAME }}
+          prs=$(gh pr list -B main -H ${{ env.ETISS_BRANCH_NAME }})
           echo Size of PRS ARRAY: ${#prs[@]}
           echo Length of PRS[0] string: ${#prs[0]}
           if ((${#prs[@]} > 0 && ${#prs[0]} != 0 )); then
