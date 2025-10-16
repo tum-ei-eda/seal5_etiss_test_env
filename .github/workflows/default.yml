@@ -37,6 +37,7 @@ env:
   LLVM_VERSION: 19.1.1
   ETISS_TOP: top
   PROGS: hello_world,dhry,tvm_vww,embench_crc32
+  ETISS_BRANCH_NAME: auto_update_riscv_archlib
 permissions:
   contents: write
   actions: write
@@ -180,6 +181,14 @@ jobs:
           # sed -i "s/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_ARCH }}/g" ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
           # TODO: if ETISS_ARCH == ETISS_BASE_ARCH
           git restore ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+          git diff > ${{ github.workspace }}/etiss.patch
+          cd -
+      - name: Upload ETISS Patch
+        if: steps.cache-etiss.outputs.cache-hit != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: etiss-patch
+          path: ${{ github.workspace }}/etiss.patch
       - name: Build ETISS
         if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
         id: etiss-compile
@@ -595,3 +604,120 @@ jobs:
         with:
           branch: stats
           # force: true
+  publish:
+    if: ${{ github.event.client_payload.is_pr != 'true' }}
+    needs: [flow,finalize]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Download Artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: artifacts/
+          github-token: ${{ github.token }}
+      - name: Check patch existance
+        id: check_patch
+        run: |
+          ls artifacts
+          ls artifacts/*
+          if [[ -f artifacts/etiss-patch/llvm.patch ]]
+          then
+            echo "exists"
+            PATCH_EXISTS=1
+          else
+            echo "not exists"
+            PATCH_EXISTS=0
+          fi
+          echo "PATCH_EXISTS=$PATCH_EXISTS" >> $GITHUB_OUTPUT
+      - name: Clone ETISS
+        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
+        uses: actions/checkout@v4
+        with:
+          repository: tum-ei-eda/etiss
+          path: etiss
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+      - name: Check if PR Branch already exists
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
+        env:
+          GH_TOKEN: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+        id: check_branch
+        run: |
+          cd etiss
+          CHECK_BRANCH=$(git ls-remote --heads origin ${{ env.ETISS_BRANCH_NAME }} | wc -l 2>&1)
+          echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT  # 1 if branch exists, 0 if not
+          prs=$(gh pr list -B main -H ${{ env.ETISS_BRANCH_NAME }}
+          echo Size of PRS ARRAY: ${#prs[@]}
+          echo Length of PRS[0] string: ${#prs[0]}
+          if ((${#prs[@]} > 0 && ${#prs[0]} != 0 )); then
+            echo skipping PR creation
+            echo "PR_EXISTS=1" >> $GITHUB_OUTPUT
+          else
+            echo "PR_EXISTS=0" >> $GITHUB_OUTPUT
+          fi
+          cd -
+      - name: Switch to PR Branch
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' }}
+        run: |
+          cd etiss
+          git branch -d -r origin/${{ env.ETISS_BRANCH_NAME }}
+          git checkout -b ${{ env.ETISS_BRANCH_NAME }}
+          cd -
+      - name: Apply Patch
+        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
+        run: |
+          cd etiss
+          git apply ../artifacts/etiss-patch/etiss.patch
+          git add .
+          git commit -m 'Apply Generated Patches'
+          cd -
+      - name: Check Diff
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
+        id: check_diff
+        run: |
+          cd etiss
+          length=$(git diff master)
+          echo exit_code=${exit_code}
+          if [[ "$length" == "0" ]]; then
+            echo "Diff is empty"
+            DIFF_EMPTY=1
+          else
+            echo "Diff is not empty"
+            DIFF_EMPTY=0
+          fi
+          echo "DIFF_EMPTY=$DIFF_EMPTY" >> $GITHUB_OUTPUT
+          cd -
+      - name: Commit Refs to PR branch
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_patch.outputs.DIFF_EMPTY != '0' }}
+        run: |
+          cd etiss
+          git commit -m "Auto-Update generated architectures"
+          cd -
+      - name: Push changes to PR branch
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_patch.outputs.DIFF_EMPTY != '0' && steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' }}
+        uses: ad-m/github-push-action@master
+        with:
+          branch: ${{ env.ETISS_BRANCH_NAME }}
+          force: true
+          github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          directory: etiss
+      - name: Fetch all branches
+        run: |
+          cd etiss
+          git fetch --all
+          cd -
+      - name: Create Pull Request
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_patch.outputs.DIFF_EMPTY != '0' && steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '0' }}
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: TODO
+          title: Auto-Update generated RISC-V architectures
+          branch: ${{ env.ETISS_BRANCH_NAME }}
+          path: etiss
+          # base: main
