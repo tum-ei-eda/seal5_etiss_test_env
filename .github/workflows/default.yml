@@ -184,7 +184,7 @@ jobs:
           git diff > ${{ github.workspace }}/etiss.patch
           cd -
       - name: Upload ETISS Patch
-        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.jit == 'TCC' && matrix.toolchain == 'gcc' }}
+        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.jit == 'TCC' && matrix.toolchain == 'gcc' && ( matrix.config.ARCH == 'rv32imafc' || matrix.config.ARCH == 'rv64imafdc' )}}
         uses: actions/upload-artifact@v4
         with:
           name: etiss-patch-${{ matrix.config.ETISS_ARCH }}
