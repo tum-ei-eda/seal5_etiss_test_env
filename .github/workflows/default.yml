@@ -707,6 +707,7 @@ jobs:
           force: true
           github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
           directory: etiss
+          repository: tum-ei-eda/etiss
       - name: Fetch all branches
         run: |
           cd etiss
