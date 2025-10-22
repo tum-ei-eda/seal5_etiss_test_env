@@ -711,6 +711,7 @@ jobs:
           directory: etiss
           repository: tum-ei-eda/etiss
       - name: Fetch all branches
+        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
         run: |
           cd etiss
           git fetch --all
