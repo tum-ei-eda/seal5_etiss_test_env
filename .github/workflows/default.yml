@@ -662,6 +662,7 @@ jobs:
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' }}
         run: |
           cd etiss
+          git fetch --all
           git branch -d -r origin/${{ env.ETISS_BRANCH_NAME }}
           git checkout -b ${{ env.ETISS_BRANCH_NAME }}
           cd -
