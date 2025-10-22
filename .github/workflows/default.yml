@@ -5,7 +5,7 @@ on:
   repository_dispatch:
     types: [cdsl-event, etiss-event, m2isar-event, examples-event]
   push:
-    branches: [main]
+    branches: [main, new]
     paths:
       - .github/workflows/default.yml
       - etiss
@@ -15,7 +15,7 @@ on:
       - riscv-tests  # TODO: add triggers
       - etiss_riscv_tests  # TODO: add triggers
   pull_request:
-    branches: [main]
+    branches: [main, new]
     paths:
       - .github/workflows/default.yml
       - etiss
