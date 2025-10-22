@@ -474,6 +474,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install APT dependencies
+        run: |
+          sudo apt-get update
+          sudo apt -qq install -y python3-pip python3-venv cmake make ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev jq
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -647,7 +651,7 @@ jobs:
     outputs:
       output1: ${{ steps.step1.outputs.test }}
       output2: ${{ steps.step2.outputs.test }}
-    needs: [setup_tests, setup_etiss]
+    needs: [check, setup_tests, setup_etiss]
     strategy:
       fail-fast: false
       # fail-fast: true
@@ -670,6 +674,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+      - name: Install APT dependencies
+        run: |
+          sudo apt-get update
+          sudo apt -qq install -y python3-pip python3-venv cmake make ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev jq
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
