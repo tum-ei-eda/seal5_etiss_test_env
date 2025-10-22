@@ -471,6 +471,7 @@ jobs:
           - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: RV64IMACFD,
              ETISS_BASE_ARCH: RV64IMACFD, ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
     # TODO: commit etiss changes? -> Generate patch file?
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -588,6 +589,7 @@ jobs:
           - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: RV64IMACFD,
              ETISS_BASE_ARCH: RV64IMACFD, ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
     # TODO: commit etiss changes? -> Generate patch file?
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -662,6 +664,7 @@ jobs:
           - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: RV64IMACFD,
              ETISS_BASE_ARCH: RV64IMACFD, ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
     # TODO: commit etiss changes? -> Generate patch file?
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
