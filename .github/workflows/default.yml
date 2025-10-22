@@ -664,7 +664,7 @@ jobs:
           cd etiss
           git fetch --all
           git branch -d -r origin/${{ env.ETISS_BRANCH_NAME }}
-          git checkout -b ${{ env.ETISS_BRANCH_NAME }}
+          git checkout -b ${{ env.ETISS_BRANCH_NAME }} origin/master
           cd -
       - name: Apply Patches
         if: steps.check_patch.outputs.PATCH_EXISTS != '0'
