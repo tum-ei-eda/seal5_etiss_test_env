@@ -515,6 +515,10 @@ jobs:
         id: etiss-run-sw
         continue-on-error: true
         run: |
+          ls
+          echo A
+          ls etiss/build/install
+          echo B
           set -o pipefail
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
@@ -579,14 +583,8 @@ jobs:
         ubuntu-version: [22.04]
         python-version: ['3.10']
         config:
-          # Multilib GCC is missing rv32imacfd build!
-          # - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
-          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac_zicsr_zifencei, ETISS_ARCH: RV32IMACFD,
-             ETISS_BASE_ARCH: RV32IMACFD, ABI: ilp32, XLEN: 32, TEST_EXTS: imacfd}
-          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imafc, ETISS_ARCH: RV32IMACFD,
-             ETISS_BASE_ARCH: RV32IMACFD, ABI: ilp32f, XLEN: 32, TEST_EXTS: imacf}  # rv32gc not supported by multilib gcc
-          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: RV64IMACFD,
-             ETISS_BASE_ARCH: RV64IMACFD, ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
+          - {XLEN: 32}
+          - {XLEN: 64}
     # TODO: commit etiss changes? -> Generate patch file?
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
