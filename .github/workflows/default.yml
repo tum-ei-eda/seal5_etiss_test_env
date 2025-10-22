@@ -177,12 +177,8 @@ jobs:
           path: update_refs.patch
       - name: Apply Refs patch
         run: |
-          ls
-          echo A
-          ls update_refs.patch
-          echo B
-          git apply refs.patch
-          rm refs.patch
+          git apply update_refs.patch
+          rm update_refs.patch
       - name: Update Submodules
         run: |
           git submodule update --init --recursive
@@ -330,8 +326,8 @@ jobs:
           path: update_refs.patch
       - name: Apply Refs patch
         run: |
-          git apply refs.patch
-          rm refs.patch
+          git apply update_refs.patch
+          rm update_refs.patch
       - name: Update Submodules
         run: |
           git submodule update --init --recursive
@@ -484,12 +480,12 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@v5
         with:
-          name: refs-patch
+          name: update_refs-patch
           path: update_refs.patch
       - name: Apply Refs patch
         run: |
-          git apply refs.patch
-          rm refs.patch
+          git apply update_refs.patch
+          rm update_refs.patch
       - name: Update Submodules
         run: |
           git submodule update --init --recursive
@@ -607,8 +603,8 @@ jobs:
           path: update_refs.patch
       - name: Apply Refs patch
         run: |
-          git apply refs.patch
-          rm refs.patch
+          git apply update_refs.patch
+          rm update_refs.patch
       - name: Update Submodules
         run: |
           git submodule update --init --recursive
@@ -683,8 +679,8 @@ jobs:
           path: update_refs.patch
       - name: Apply Refs patch
         run: |
-          git apply refs.patch
-          rm refs.patch
+          git apply update_refs.patch
+          rm update_refs.patch
       - name: Update Submodules
         run: |
           git submodule update --init --recursive
@@ -763,8 +759,8 @@ jobs:
           path: update_refs.patch
       - name: Apply Refs patch
         run: |
-          git apply refs.patch
-          rm refs.patch
+          git apply update_refs.patch
+          rm update_refs.patch
       - name: Update Submodules
         run: |
           git submodule update --init --recursive
