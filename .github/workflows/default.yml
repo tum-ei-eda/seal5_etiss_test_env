@@ -174,7 +174,6 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: refs-patch
-          path: update_refs.patch
       - name: Apply Refs patch
         run: |
           git apply update_refs.patch
@@ -323,7 +322,6 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: refs-patch
-          path: update_refs.patch
       - name: Apply Refs patch
         run: |
           git apply update_refs.patch
@@ -481,7 +479,6 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: update_refs-patch
-          path: update_refs.patch
       - name: Apply Refs patch
         run: |
           git apply update_refs.patch
@@ -600,7 +597,6 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: refs-patch
-          path: update_refs.patch
       - name: Apply Refs patch
         run: |
           git apply update_refs.patch
@@ -676,7 +672,6 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: refs-patch
-          path: update_refs.patch
       - name: Apply Refs patch
         run: |
           git apply update_refs.patch
@@ -756,7 +751,6 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: refs-patch
-          path: update_refs.patch
       - name: Apply Refs patch
         run: |
           git apply update_refs.patch
