@@ -350,5 +350,49 @@
     "timestamp": "2025-10-16T12:55:50Z",
     "env_sha": "49e751e52578664354cd34fde8e3a05272cfc03a",
     "etiss_sha": "92bbbb2192a3189ab81f7dbc586a6ee19e6d9749"
+  },
+  {
+    "mips": 51.9655,
+    "Simulation_Time": 4.56191,
+    "CPU_Time": 7.40818,
+    "CPU_cycle": 237062000,
+    "prog": "dhry",
+    "jit": "TCC",
+    "timestamp": "2025-10-22T06:07:41Z",
+    "env_sha": "03957a94cc2d50623056b69b0af4b9ea2c78573c",
+    "etiss_sha": "92bbbb2192a3189ab81f7dbc586a6ee19e6d9749"
+  },
+  {
+    "mips": 35.7128,
+    "Simulation_Time": 0.107746,
+    "CPU_Time": 0.120247,
+    "CPU_cycle": 3847890,
+    "prog": "embench_crc32",
+    "jit": "TCC",
+    "timestamp": "2025-10-22T06:07:41Z",
+    "env_sha": "03957a94cc2d50623056b69b0af4b9ea2c78573c",
+    "etiss_sha": "92bbbb2192a3189ab81f7dbc586a6ee19e6d9749"
+  },
+  {
+    "mips": 0.012542,
+    "Simulation_Time": 0.205629,
+    "CPU_Time": 0.0000805938,
+    "CPU_cycle": 2579,
+    "prog": "hello_world",
+    "jit": "TCC",
+    "timestamp": "2025-10-22T06:07:41Z",
+    "env_sha": "03957a94cc2d50623056b69b0af4b9ea2c78573c",
+    "etiss_sha": "92bbbb2192a3189ab81f7dbc586a6ee19e6d9749"
+  },
+  {
+    "mips": 84.0668,
+    "Simulation_Time": 23.5414,
+    "CPU_Time": 61.8453,
+    "CPU_cycle": 1979050000,
+    "prog": "tvm_vww",
+    "jit": "TCC",
+    "timestamp": "2025-10-22T06:07:41Z",
+    "env_sha": "03957a94cc2d50623056b69b0af4b9ea2c78573c",
+    "etiss_sha": "92bbbb2192a3189ab81f7dbc586a6ee19e6d9749"
   }
 ]
