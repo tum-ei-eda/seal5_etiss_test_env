@@ -624,7 +624,6 @@ jobs:
         with:
           path: artifacts/
           github-token: ${{ github.token }}
-          run-id: '18561664668'
       - name: Check patch existance
         id: check_patch
         run: |
@@ -682,7 +681,7 @@ jobs:
         id: check_diff
         run: |
           cd etiss
-          diff_out=$(git diff -I"Generated on" master)
+          diff_out=$(git diff -w -I"Generated on" master)
           echo exit_code=$?
           echo "diff_out=$diff_out"
           length=$(cat $diff_out | wc -l)
