@@ -682,8 +682,11 @@ jobs:
         id: check_diff
         run: |
           cd etiss
-          length=$(git diff -I"Generated on" master)
-          echo exit_code=${exit_code}
+          diff_out=$(git diff -I"Generated on" master)
+          echo exit_code=$?
+          echo "diff_out=$diff_out"
+          length=$(cat $diff_out | wc -l)
+          echo
           if [[ "$length" == "0" ]]; then
             echo "Diff is empty"
             DIFF_EMPTY=1
