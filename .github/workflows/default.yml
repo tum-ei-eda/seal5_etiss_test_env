@@ -674,7 +674,7 @@ jobs:
             git apply $file
           done
           git add .
-          git commit -m 'Apply Generated Patches'
+          # git commit -m 'Apply Generated Patches'
           cd -
       - name: Check Diff
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
