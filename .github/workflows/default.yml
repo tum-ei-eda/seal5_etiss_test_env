@@ -521,6 +521,7 @@ jobs:
           echo B
           set -o pipefail
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          chmod +x etiss/build/install/bin/bare_etiss_processor
           for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "--- Program: $prog ---" | tee -a etiss_sw_run_out.txt
               timeout 5m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
@@ -694,8 +695,8 @@ jobs:
       - name: Download Prebuilt Tests
         uses: actions/download-artifact@v5
         with:
-          name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref }}
-            }}-{{ matrix.config.XLEN }}
+          name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}-${{ matrix.config.XLEN }}
           path: riscv-tests/isa
       - name: Download Prebuilt ETISS
         uses: actions/download-artifact@v4
@@ -713,6 +714,7 @@ jobs:
           source venv/bin/activate
           pip install -r requirements.txt
           cd ..
+          chmod +x etiss/build/install/bin/bare_etiss_processor
           python etiss_riscv_tests/test.py --arch ${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit $(echo ${{ matrix.jit }} | tr '[:upper:]' '[:lower:]') --runlevel msu --keep-output both riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
       - name: Add ETISS RISC-V Test Results Summary
         # if: steps.etiss-run-riscv-tests.outcome != 'success'
