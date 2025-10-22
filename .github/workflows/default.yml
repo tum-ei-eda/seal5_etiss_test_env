@@ -502,8 +502,8 @@ jobs:
           name: examples-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
             }}-{{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
           path: etiss_riscv_examples/build/install
-      - name: Upload Prebuilt ETISS
-        uses: actions/upload-artifact@v4
+      - name: Download Prebuilt ETISS
+        uses: actions/download-artifact@v4
         with:
           name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
@@ -639,8 +639,8 @@ jobs:
       - name: Upload Prebuilt Tests
         uses: actions/upload-artifact@v4
         with:
-          name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref }}
-            }}-{{ matrix.config.XLEN }}
+          name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}-${{ matrix.config.XLEN }}
           path: riscv-tests/isa
   run_tests:
     outputs:
@@ -697,8 +697,8 @@ jobs:
           name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref }}
             }}-{{ matrix.config.XLEN }}
           path: riscv-tests/isa
-      - name: Upload Prebuilt ETISS
-        uses: actions/upload-artifact@v4
+      - name: Download Prebuilt ETISS
+        uses: actions/download-artifact@v4
         with:
           name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
