@@ -50,7 +50,7 @@ jobs:
       examples_ref: ${{ steps.refs.outputs.examples_ref }}
       m2isar_ref: ${{ steps.refs.outputs.m2isar_ref }}
       cdsl_ref: ${{ steps.refs.outputs.cdsl_ref }}
-      num_changed: ${{ step.count_files.outputs.NUM_CHANGED }}
+      num_changed: ${{ steps.count_files.outputs.NUM_CHANGED }}
     strategy:
       fail-fast: false
       # fail-fast: true
