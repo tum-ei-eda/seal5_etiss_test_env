@@ -163,7 +163,7 @@ jobs:
           source venv/bin/activate
           # TODO: generalize
           python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc
-          python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
+          python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage
 
     # - name: Upload M2ISAR Model artifacts
     #   uses: actions/upload-artifact@v4
@@ -607,7 +607,7 @@ jobs:
           branch: stats
           # force: true
   publish:
-    if: ${{ github.event.client_payload.is_pr != 'true' }}
+    if: ${{ github.event.client_payload.is_pr != 'true' && github.event.client_payload.from == '' }}
     needs: [flow,finalize]
     runs-on: ubuntu-latest
     steps:
@@ -681,7 +681,7 @@ jobs:
         id: check_diff
         run: |
           cd etiss
-          length=$(git diff master)
+          length=$(git diff -I"Generated on" master)
           echo exit_code=${exit_code}
           if [[ "$length" == "0" ]]; then
             echo "Diff is empty"
