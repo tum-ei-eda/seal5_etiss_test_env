@@ -1,0 +1,5331 @@
+diff --git a/.gitignore b/.gitignore
+index 20c4f52cd..ad70422c3 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -70,3 +70,9 @@ pythonenv*
+ /clang/utils/analyzer/projects/*/RefScanBuildResults
+ # automodapi puts generated documentation files here.
+ /lldb/docs/python_api/
++
++
++#==============================================================================#
++# Seal5
++#==============================================================================#
++.seal5
+diff --git a/.gitlab-ci.yml b/.gitlab-ci.yml
+new file mode 100644
+index 000000000..a7a939cb1
+--- /dev/null
++++ b/.gitlab-ci.yml
+@@ -0,0 +1,32 @@
++image: ubuntu:22.04
++
++stages:
++  - build
++  # TODO: lint stage
++
++# Change pip's cache directory to be inside the project directory since we can
++# only cache local items.
++variables:
++  DEBIAN_FRONTEND: noninteractive
++
++before_script:
++  - export RUNNER_MAX_LINK_JOBS=`free --giga | grep Mem | awk '{print int($2 / 16)}'`
++  - apt-get update
++  - apt-get install -y build-essential cmake ninja-build python3-dev
++
++build:
++  stage: build
++  script:
++    - mkdir build
++    - cmake -DLLVM_PARALLEL_LINK_JOBS=${RUNNER_MAX_LINK_JOBS} -DLLVM_TARGETS_TO_BUILD="X86;RISCV" -DLLVM_ENABLE_PROJECTS="clang;lld" -DLLVM_ENABLE_ASSERTIONS=ON -DCMAKE_BUILD_TYPE=Release -G Ninja -B build -DCMAKE_INSTALL_PREFIX=$(pwd)/installed/ -DLLVM_BUILD_TOOLS=OFF -DLLVM_OPTIMIZED_TABLEGEN=ON ./llvm
++    - cmake --build build
++    - cmake --build build -t llvm-config
++    - cmake --build build -t llvm-objdump
++    - cmake --install build
++    - cp build/bin/llvm-config installed/bin/
++    - cp build/bin/llvm-objdump installed/bin/
++    - cd installed && time XZ_OPT="-T0 -9" tar -cfJ ../llvm.tar.xz . && cd -
++    - cmake --build build -t check-all
++  artifacts:
++    paths:
++      - llvm.tar.xz
+diff --git a/clang/include/clang/Basic/BuiltinsRISCV.td b/clang/include/clang/Basic/BuiltinsRISCV.td
+index 4cc89a8a9..6da9252c4 100644
+--- a/clang/include/clang/Basic/BuiltinsRISCV.td
++++ b/clang/include/clang/Basic/BuiltinsRISCV.td
+@@ -146,3 +146,6 @@ let Features = "zihintntl", Attributes = [CustomTypeChecking] in {
+ def ntl_load : RISCVBuiltin<"void(...)">;
+ def ntl_store : RISCVBuiltin<"void(...)">;
+ } // Features = "zihintntl", Attributes = [CustomTypeChecking]
++
++// BuiltinsRISCV.td - builtins_riscv - INSERTION_START
++// BuiltinsRISCV.td - builtins_riscv - INSERTION_END
+diff --git a/clang/lib/CodeGen/CGBuiltin.cpp b/clang/lib/CodeGen/CGBuiltin.cpp
+index 86d470546..b9f348699 100644
+--- a/clang/lib/CodeGen/CGBuiltin.cpp
++++ b/clang/lib/CodeGen/CGBuiltin.cpp
+@@ -22000,6 +22000,9 @@ Value *CodeGenFunction::EmitRISCVBuiltinExpr(unsigned BuiltinID,
+     ID = Intrinsic::riscv_sha256sum1;
+     break;
+ 
++// CGBuiltin.cpp - cg_builtin - INSERTION_START
++// CGBuiltin.cpp - cg_builtin - INSERTION_END
++
+   // Zksed
+   case RISCV::BI__builtin_riscv_sm4ks:
+     ID = Intrinsic::riscv_sm4ks;
+diff --git a/llvm/include/llvm/CodeGen/GlobalISel/PatternGen.h b/llvm/include/llvm/CodeGen/GlobalISel/PatternGen.h
+new file mode 100644
+index 000000000..044cdb167
+--- /dev/null
++++ b/llvm/include/llvm/CodeGen/GlobalISel/PatternGen.h
+@@ -0,0 +1,63 @@
++//== llvm/CodeGen/GlobalISel/PatternGen.h -----------------*- C++ -*-==//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++/// \file This file describes the interface of the MachineFunctionPass
++/// responsible for selecting (possibly generic) machine instructions to
++/// target-specific instructions.
++//===----------------------------------------------------------------------===//
++
++#ifndef LLVM_CODEGEN_GLOBALISEL_PATTERNGEN_H
++#define LLVM_CODEGEN_GLOBALISEL_PATTERNGEN_H
++
++#include "../../../tools/pattern-gen/PatternGen.hpp"
++#include "llvm/ADT/StringRef.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineFunctionPass.h"
++#include "llvm/Support/CodeGen.h"
++
++struct CDSLInstr;
++
++namespace llvm {
++
++namespace PatternGenArgs {
++extern std::ostream *OutStream;
++extern std::vector<CDSLInstr> const *Instrs;
++extern PGArgsStruct Args;
++} // namespace PatternGenArgs
++
++class BlockFrequencyInfo;
++class ProfileSummaryInfo;
++
++class PatternGen : public MachineFunctionPass {
++public:
++  static char ID;
++  StringRef getPassName() const override { return "PatternGen"; }
++
++  void getAnalysisUsage(AnalysisUsage &AU) const override;
++
++  MachineFunctionProperties getRequiredProperties() const override {
++    return MachineFunctionProperties()
++        .set(MachineFunctionProperties::Property::IsSSA)
++        .set(MachineFunctionProperties::Property::Legalized)
++        .set(MachineFunctionProperties::Property::RegBankSelected);
++  }
++
++  PatternGen(CodeGenOptLevel OL);
++  PatternGen();
++
++  bool runOnMachineFunction(MachineFunction &MF) override;
++
++protected:
++  BlockFrequencyInfo *BFI = nullptr;
++  ProfileSummaryInfo *PSI = nullptr;
++
++  CodeGenOptLevel OptLevel = CodeGenOptLevel::None;
++};
++} // End namespace llvm.
++
++#endif
++
+diff --git a/llvm/include/llvm/IR/IntrinsicsRISCV.td b/llvm/include/llvm/IR/IntrinsicsRISCV.td
+index 2da154c30..5c9e9f94c 100644
+--- a/llvm/include/llvm/IR/IntrinsicsRISCV.td
++++ b/llvm/include/llvm/IR/IntrinsicsRISCV.td
+@@ -1897,6 +1897,8 @@ let TargetPrefix = "riscv" in {
+   // Zvksh
+   def int_riscv_vsm3c    : RISCVBinaryAAXUnMaskedZvk<IsVI=1>;
+   def int_riscv_vsm3me   : RISCVBinaryAAXUnMasked;
++// IntrinsicsRISCV.td - intrinsics_riscv - INSERTION_START
++// IntrinsicsRISCV.td - intrinsics_riscv - INSERTION_END
+ } // TargetPrefix = "riscv"
+ 
+ // Vendor extensions
+diff --git a/llvm/include/llvm/InitializePasses.h b/llvm/include/llvm/InitializePasses.h
+index 13be9c11f..193ac3d45 100644
+--- a/llvm/include/llvm/InitializePasses.h
++++ b/llvm/include/llvm/InitializePasses.h
+@@ -314,6 +314,9 @@ void initializeWasmEHPreparePass(PassRegistry&);
+ void initializeWinEHPreparePass(PassRegistry&);
+ void initializeWriteBitcodePassPass(PassRegistry&);
+ void initializeXRayInstrumentationPass(PassRegistry&);
++// InitializePasses.h - initialize_passes_decl - INSERTION_START
++void initializePatternGenPass(PassRegistry&);
++// InitializePasses.h - initialize_passes_decl - INSERTION_END
+ 
+ } // end namespace llvm
+ 
+diff --git a/llvm/lib/CodeGen/GlobalISel/CMakeLists.txt b/llvm/lib/CodeGen/GlobalISel/CMakeLists.txt
+index 54ac7f720..095f92fdb 100644
+--- a/llvm/lib/CodeGen/GlobalISel/CMakeLists.txt
++++ b/llvm/lib/CodeGen/GlobalISel/CMakeLists.txt
+@@ -25,6 +25,9 @@ add_llvm_component_library(LLVMGlobalISel
+   MachineIRBuilder.cpp
+   RegBankSelect.cpp
+   Utils.cpp
++  # CMakeLists.txt - gisel_cmake_srcs - INSERTION_START
++  PatternGen.cpp
++  # CMakeLists.txt - gisel_cmake_srcs - INSERTION_END
+ 
+   ADDITIONAL_HEADER_DIRS
+   ${LLVM_MAIN_INCLUDE_DIR}/llvm/CodeGen/GlobalISel
+diff --git a/llvm/lib/CodeGen/GlobalISel/GlobalISel.cpp b/llvm/lib/CodeGen/GlobalISel/GlobalISel.cpp
+index efcc40641..1d6e63d4b 100644
+--- a/llvm/lib/CodeGen/GlobalISel/GlobalISel.cpp
++++ b/llvm/lib/CodeGen/GlobalISel/GlobalISel.cpp
+@@ -21,4 +21,7 @@ void llvm::initializeGlobalISel(PassRegistry &Registry) {
+   initializeLocalizerPass(Registry);
+   initializeRegBankSelectPass(Registry);
+   initializeInstructionSelectPass(Registry);
++  // GlobalISel.cpp - gisel_init - INSERTION_START
++  initializePatternGenPass(Registry);
++  // GlobalISel.cpp - gisel_init - INSERTION_END
+ }
+diff --git a/llvm/lib/CodeGen/GlobalISel/PatternGen.cpp b/llvm/lib/CodeGen/GlobalISel/PatternGen.cpp
+new file mode 100644
+index 000000000..2eb97b071
+--- /dev/null
++++ b/llvm/lib/CodeGen/GlobalISel/PatternGen.cpp
+@@ -0,0 +1,1461 @@
++//===- llvm/CodeGen/GlobalISel/PatternGen.cpp - PatternGen ---==//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++/// \file
++/// This file implements the PatternGen class.
++//===----------------------------------------------------------------------===//
++
++#include "llvm/CodeGen/GlobalISel/PatternGen.h"
++#include "../../../tools/pattern-gen/lib/InstrInfo.hpp"
++#include "llvm/ADT/PostOrderIterator.h"
++#include "llvm/ADT/ScopeExit.h"
++#include "llvm/ADT/Statistic.h"
++#include "llvm/Analysis/LazyBlockFrequencyInfo.h"
++#include "llvm/Analysis/ProfileSummaryInfo.h"
++#include "llvm/CodeGen/GlobalISel/GISelKnownBits.h"
++#include "llvm/CodeGen/GlobalISel/InstructionSelector.h"
++#include "llvm/CodeGen/GlobalISel/LegalizerInfo.h"
++#include "llvm/CodeGen/GlobalISel/Utils.h"
++#include "llvm/CodeGen/ISDOpcodes.h"
++#include "llvm/CodeGen/MachineBasicBlock.h"
++#include "llvm/CodeGen/MachineFrameInfo.h"
++#include "llvm/CodeGen/MachineFunction.h"
++#include "llvm/CodeGen/MachineInstr.h"
++#include "llvm/CodeGen/MachineMemOperand.h"
++#include "llvm/CodeGen/MachineOptimizationRemarkEmitter.h"
++#include "llvm/CodeGen/MachineRegisterInfo.h"
++#include "llvm/CodeGen/TargetLowering.h"
++#include "llvm/CodeGen/TargetOpcodes.h"
++#include "llvm/CodeGen/TargetPassConfig.h"
++#include "llvm/CodeGen/TargetSubtargetInfo.h"
++#include "llvm/CodeGenTypes/LowLevelType.h"
++#include "llvm/Config/config.h"
++#include "llvm/IR/Function.h"
++#include "llvm/IR/InstrTypes.h"
++#include "llvm/MC/TargetRegistry.h"
++#include "llvm/Support/Casting.h"
++#include "llvm/Support/CodeGenCoverage.h"
++#include "llvm/Support/CommandLine.h"
++#include "llvm/Support/Debug.h"
++#include "llvm/Support/TypeSize.h"
++#include "llvm/Support/raw_ostream.h"
++#include "llvm/Target/TargetMachine.h"
++#include "llvm/Transforms/Utils/PredicateInfo.h"
++#include <memory>
++#include <sstream>
++#include <string>
++#include <utility>
++
++#define DEBUG_TYPE "pattern-gen"
++
++using namespace llvm;
++
++STATISTIC(PatternGenNumInstructionsProcessed, "Processed instructions");
++STATISTIC(PatternGenNumInstructionsFailing, "Failing instructions");
++STATISTIC(PatternGenNumPatternsGenerated, "Generated patterns");
++STATISTIC(PatternGenNumPatternsFailing, "Failing patterns");
++STATISTIC(PatternGenNumErrorMultipleBlocks, "Errors of type: MULTIPLE_BLOCKS");
++STATISTIC(PatternGenNumErrorFormatReturn, "Errors of type: FORMAT_RETURN");
++STATISTIC(PatternGenNumErrorFormatStore, "Errors of type: FORMAT_STORE");
++STATISTIC(PatternGenNumErrorFormatLoad, "Errors of type: FORMAT_LOAD");
++STATISTIC(PatternGenNumErrorFormatImm, "Errors of type: FORMAT_IMM");
++STATISTIC(PatternGenNumErrorFormat, "Errors of type: FORMAT");
++STATISTIC(PatternGenNumErrorMultipleStores, "Errors of type: MULTIPLE STORES");
++STATISTIC(PatternGenNumErrorUnusedOperand, "Errors of type: UNUSED_OPERAND");
++STATISTIC(PatternGenNumErrorOperandMissmatch, "Errors of type: OPERAND_MISSMATCH");
++
++#ifdef LLVM_GISEL_COV_PREFIX
++static cl::opt<std::string>
++    CoveragePrefix("gisel-coverage-prefix", cl::init(LLVM_GISEL_COV_PREFIX),
++                   cl::desc("Record GlobalISel rule coverage files of this "
++                            "prefix if instrumentation was generated"));
++#else
++static const std::string CoveragePrefix;
++#endif
++
++std::ostream *PatternGenArgs::OutStream = nullptr;
++std::vector<CDSLInstr> const *PatternGenArgs::Instrs = nullptr;
++PGArgsStruct PatternGenArgs::Args;
++
++struct PatternArg {
++  std::string ArgTypeStr;
++  LLT Llt;
++  // We also have in and out bits in the CDSLInstr struct itself.
++  // These bits are currently ignored though. Instead, we find inputs
++  // and outputs during pattern gen and store that in these fields.
++  // We may want to add a warning on mismatch between the two.
++  bool In;
++  bool Out;
++};
++
++static CDSLInstr const *CurInstr = nullptr;
++static SmallVector<PatternArg, 8> PatternArgs;
++static bool MayLoad = 0;
++static bool MayStore = 0;
++
++static uint64_t XLen;
++static std::string RegT;
++
++char PatternGen::ID = 0;
++INITIALIZE_PASS_BEGIN(
++    PatternGen, DEBUG_TYPE,
++    "Convert instruction behavior functions to TableGen ISel patterns", false,
++    false)
++INITIALIZE_PASS_DEPENDENCY(TargetPassConfig)
++INITIALIZE_PASS_DEPENDENCY(GISelKnownBitsAnalysis)
++INITIALIZE_PASS_DEPENDENCY(ProfileSummaryInfoWrapperPass)
++INITIALIZE_PASS_DEPENDENCY(LazyBlockFrequencyInfoPass)
++INITIALIZE_PASS_END(
++    PatternGen, DEBUG_TYPE,
++    "Convert instruction behavior functions to TableGen ISel patterns", false,
++    false)
++
++PatternGen::PatternGen(CodeGenOptLevel OL)
++    : MachineFunctionPass(ID), OptLevel(OL) {}
++
++// In order not to crash when calling getAnalysis during testing with -run-pass
++// we use the default opt level here instead of None, so that the addRequired()
++// calls are made in getAnalysisUsage().
++PatternGen::PatternGen()
++    : MachineFunctionPass(ID), OptLevel(CodeGenOptLevel::Default) {}
++
++void PatternGen::getAnalysisUsage(AnalysisUsage &AU) const {
++  AU.addRequired<TargetPassConfig>();
++  AU.addRequired<GISelKnownBitsAnalysis>();
++  AU.addPreserved<GISelKnownBitsAnalysis>();
++
++  if (OptLevel != CodeGenOptLevel::None) {
++    AU.addRequired<ProfileSummaryInfoWrapperPass>();
++    LazyBlockFrequencyInfoPass::getLazyBFIAnalysisUsage(AU);
++  }
++  getSelectionDAGFallbackAnalysisUsage(AU);
++  MachineFunctionPass::getAnalysisUsage(AU);
++}
++
++enum PatternErrorT {
++  SUCCESS = 0,
++  MULTIPLE_BLOCKS,
++  FORMAT_RETURN,
++  FORMAT_STORE,
++  FORMAT_LOAD,
++  FORMAT_IMM,
++  FORMAT,
++  MULTIPLE_STORES,
++  UNUSED_OPERANDS
++};
++struct PatternError {
++  PatternErrorT Type;
++  MachineInstr *Inst;
++  PatternError(PatternErrorT Type) : Type(Type), Inst(nullptr) {}
++  PatternError(PatternErrorT Type, MachineInstr *Inst)
++      : Type(Type), Inst(Inst) {}
++  operator bool() const { return Type != 0; }
++};
++
++std::string Errors[] = {"success",        "multiple blocks", "expected return",
++                        "expected store", "load format",     "immediate format",
++                        "format",         "multiple stores"};
++llvm::Statistic *ErrorStats[] = {nullptr,
++                                 &PatternGenNumErrorMultipleBlocks,
++                                 &PatternGenNumErrorFormatReturn,
++                                 &PatternGenNumErrorFormatStore,
++                                 &PatternGenNumErrorFormatLoad,
++                                 &PatternGenNumErrorFormatImm,
++                                 &PatternGenNumErrorFormat,
++                                 &PatternGenNumErrorMultipleStores,
++                                 &PatternGenNumErrorUnusedOperand};
++
++static const std::unordered_map<unsigned, std::string> CmpStr = {
++    {CmpInst::Predicate::ICMP_EQ, "SETEQ"},
++    {CmpInst::Predicate::ICMP_NE, "SETNE"},
++    {CmpInst::Predicate::ICMP_SLT, "SETLT"},
++    {CmpInst::Predicate::ICMP_SLE, "SETLE"},
++    {CmpInst::Predicate::ICMP_SGT, "SETGT"},
++    {CmpInst::Predicate::ICMP_SGE, "SETGE"},
++    {CmpInst::Predicate::ICMP_ULT, "SETULT"},
++    {CmpInst::Predicate::ICMP_ULE, "SETULE"},
++    {CmpInst::Predicate::ICMP_UGT, "SETUGT"},
++    {CmpInst::Predicate::ICMP_UGE, "SETUGE"},
++};
++
++std::string lltToString(LLT Llt) {
++  if (Llt.isFixedVector())
++    return "v" + std::to_string(Llt.getElementCount().getFixedValue()) +
++           lltToString(Llt.getElementType());
++  if (Llt.isScalar())
++    return "i" + std::to_string(Llt.getSizeInBits());
++  if (Llt.isPointer())
++    return "iPTR";
++  assert(0 && "invalid type");
++  return "invalid";
++}
++
++std::string lltToRegTypeStr(LLT Type) {
++  if (Type.isValid()) {
++    if (Type.isFixedVector() && Type.getElementType().isScalar() &&
++        Type.getSizeInBits() == 32) {
++      if (Type.getElementType().getSizeInBits() == 8)
++        return "GPR32V4";
++      if (Type.getElementType().getSizeInBits() == 16)
++        return "GPR32V2";
++      abort();
++    } else
++      return "GPR";
++  }
++  assert(0 && "invalid type");
++  return "invalid";
++}
++
++std::string makeImmTypeStr(int Size, bool Signed) {
++  return (Signed ? "simm" : "uimm") + std::to_string(Size);
++}
++
++struct PatternNode {
++  enum PatternNodeKind {
++    PN_NOp,
++    PN_Binop,
++    PN_Ternop,
++    PN_Shuffle,
++    PN_Compare,
++    PN_Unop,
++    PN_Constant,
++    PN_Register,
++    PN_Load,
++    PN_Select,
++    PN_Cast,
++    PN_Store
++  };
++
++private:
++  const PatternNodeKind Kind;
++
++public:
++  PatternNodeKind getKind() const { return Kind; }
++  LLT Type;
++  bool IsImm = false;
++  PatternNode(PatternNodeKind Kind, LLT Type, bool IsImm)
++      : Kind(Kind), Type(Type), IsImm(IsImm) {}
++
++  virtual std::string patternString() = 0;
++  virtual LLT getRegisterTy(int OperandId) const {
++    if (OperandId == -1)
++      return Type;
++    return LLT();
++  }
++  virtual ~PatternNode() {}
++};
++
++struct NOpNode : public PatternNode {
++  int Op;
++  std::vector<std::unique_ptr<PatternNode>> Operands;
++  NOpNode(LLT Type, int Op, std::vector<std::unique_ptr<PatternNode>> Operands)
++      : PatternNode(PN_NOp, Type, false), Op(Op),
++        Operands(std::move(Operands)) {}
++
++  std::string patternString() override {
++    static const std::unordered_map<int, std::string> NOpStr = {
++        {TargetOpcode::G_BUILD_VECTOR, "build_vector"},
++        {TargetOpcode::G_SELECT, "vselect"}};
++
++    std::string S = "(" + std::string(NOpStr.at(Op)) + " ";
++    for (auto &Operand : Operands)
++      S += Operand->patternString() + ", ";
++    if (!Operands.empty())
++      S = S.substr(0, S.size() - 2);
++
++    S += ")";
++    return S;
++  }
++  LLT getRegisterTy(int OperandId) const override {
++    if (OperandId == -1)
++      return Type;
++
++    for (auto &Operand : Operands) {
++      auto T = Operand->getRegisterTy(OperandId);
++      if (T.isValid())
++        return T;
++    }
++    return LLT();
++  }
++  static bool classof(const PatternNode *Pat) {
++    return Pat->getKind() == PN_NOp;
++  }
++};
++
++struct ShuffleNode : public PatternNode {
++  int Op;
++  std::unique_ptr<PatternNode> First;
++  std::unique_ptr<PatternNode> Second;
++  ArrayRef<int> Mask;
++
++  ShuffleNode(LLT Type, int Op, std::unique_ptr<PatternNode> First,
++              std::unique_ptr<PatternNode> Second, ArrayRef<int> Mask)
++      : PatternNode(PN_Shuffle, Type, false), Op(Op), First(std::move(First)),
++        Second(std::move(Second)), Mask(std::move(Mask)) {}
++
++  std::string patternString() override {
++    std::string TypeStr = lltToString(Type);
++    std::string MaskStr = "";
++
++    for (size_t I = 0; I < Mask.size(); I++) {
++      if (I != 0) {
++        MaskStr += ", ";
++      }
++      MaskStr += std::to_string(Mask[I]);
++    }
++    std::string OpString = "(vector_shuffle<" + MaskStr + "> " +
++                           First->patternString() + ", " +
++                           Second->patternString() + ")";
++
++    // Explicitly specifying types for all ops increases pattern compile time
++    // significantly, so we only do for ops where deduction fails otherwise.
++    bool PrintType = false;
++
++    if (PrintType)
++      return "(" + TypeStr + " " + OpString + ")";
++    return OpString;
++  }
++
++  LLT getRegisterTy(int OperandId) const override {
++    if (OperandId == -1)
++      return Type;
++
++    auto FirstT = First->getRegisterTy(OperandId);
++    auto SecondT = Second->getRegisterTy(OperandId);
++    return FirstT.isValid() ? FirstT : SecondT;
++  }
++
++  static bool classof(const PatternNode *Pat) {
++    return Pat->getKind() == PN_Shuffle;
++  }
++};
++
++struct TernopNode : public PatternNode {
++  int Op;
++  std::unique_ptr<PatternNode> First;
++  std::unique_ptr<PatternNode> Second;
++  std::unique_ptr<PatternNode> Third;
++
++  TernopNode(LLT Type, int Op, std::unique_ptr<PatternNode> First,
++             std::unique_ptr<PatternNode> Second,
++             std::unique_ptr<PatternNode> Third)
++      : PatternNode(PN_Ternop, Type, false), Op(Op), First(std::move(First)),
++        Second(std::move(Second)), Third(std::move(Third)) {}
++
++  std::string patternString() override {
++    static const std::unordered_map<int, std::string> TernopStr = {
++        {TargetOpcode::G_FSHL, "fshl"},
++        {TargetOpcode::G_FSHR, "fshr"},
++        {TargetOpcode::G_INSERT_VECTOR_ELT, "vector_insert"},
++        {TargetOpcode::G_SELECT, "select"}};
++
++    std::string TypeStr = lltToString(Type);
++    std::string OpString =
++        "(" + std::string(TernopStr.at(Op)) + " " + First->patternString() +
++        ", " + Second->patternString() + ", " + Third->patternString() + ")";
++
++    bool PrintType = false;
++    if (PrintType)
++      return "(" + TypeStr + " " + OpString + ")";
++    return OpString;
++  }
++
++  LLT getRegisterTy(int OperandId) const override {
++    if (OperandId == -1)
++      return Type;
++
++    auto FirstT = First->getRegisterTy(OperandId);
++    auto SecondT = Second->getRegisterTy(OperandId);
++    auto ThirdT = Third->getRegisterTy(OperandId);
++    return FirstT.isValid() ? FirstT : (SecondT.isValid() ? SecondT : ThirdT);
++  }
++
++  static bool classof(const PatternNode *Pat) {
++    return Pat->getKind() == PN_Ternop;
++  }
++};
++
++struct BinopNode : public PatternNode {
++  int Op;
++  std::unique_ptr<PatternNode> Left;
++  std::unique_ptr<PatternNode> Right;
++
++  BinopNode(LLT Type, int Op, std::unique_ptr<PatternNode> Left,
++            std::unique_ptr<PatternNode> Right)
++      : PatternNode(PN_Binop, Type, false), Op(Op), Left(std::move(Left)),
++        Right(std::move(Right)) {}
++
++  std::string patternString() override {
++    static const std::unordered_map<int, std::string> BinopStr = {
++        {TargetOpcode::G_ADD, "add"},
++        {TargetOpcode::G_PTR_ADD, "ptradd"},
++        {TargetOpcode::G_SUB, "sub"},
++        {TargetOpcode::G_MUL, "mul"},
++        {TargetOpcode::G_UMULH, "mulhu"},
++        {TargetOpcode::G_SMULH, "mulhs"},
++        {TargetOpcode::G_UDIV, "udiv"},
++        {TargetOpcode::G_SREM, "srem"},
++        {TargetOpcode::G_UREM, "urem"},
++        {TargetOpcode::G_SDIV, "sdiv"},
++        {TargetOpcode::G_SADDSAT, "saddsat"},
++        {TargetOpcode::G_UADDSAT, "uaddsat"},
++        {TargetOpcode::G_SSUBSAT, "ssubsat"},
++        {TargetOpcode::G_USUBSAT, "usubsat"},
++        {TargetOpcode::G_SSHLSAT, "sshlsat"},
++        {TargetOpcode::G_USHLSAT, "ushlsat"},
++        {TargetOpcode::G_SMULFIX, "smulfix"},
++        {TargetOpcode::G_UMULFIX, "umulfix"},
++        {TargetOpcode::G_SMULFIXSAT, "smulfixsat"},
++        {TargetOpcode::G_UMULFIXSAT, "umulfixsat"},
++        {TargetOpcode::G_SDIVFIX, "sdivfix"},
++        {TargetOpcode::G_UDIVFIX, "udivfix"},
++        {TargetOpcode::G_SDIVFIXSAT, "sdivfixsat"},
++        {TargetOpcode::G_UDIVFIXSAT, "udivfixsat"},
++        {TargetOpcode::G_AND, "and"},
++        {TargetOpcode::G_OR, "or"},
++        {TargetOpcode::G_XOR, "xor"},
++        {TargetOpcode::G_SHL, "shl"},
++        {TargetOpcode::G_LSHR, "srl"},
++        {TargetOpcode::G_ASHR, "sra"},
++        {TargetOpcode::G_SMAX, "smax"},
++        {TargetOpcode::G_UMAX, "umax"},
++        {TargetOpcode::G_SMIN, "smin"},
++        {TargetOpcode::G_UMIN, "umin"},
++        {TargetOpcode::G_ROTR, "rotr"},
++        {TargetOpcode::G_ROTL, "rotl"},
++        {TargetOpcode::G_EXTRACT_VECTOR_ELT, "vector_extract"}};
++
++    static const std::vector<double> CommOps = {
++        TargetOpcode::G_ADD,   TargetOpcode::G_MUL,  TargetOpcode::G_UMULH,
++        TargetOpcode::G_SMULH, TargetOpcode::G_AND,  TargetOpcode::G_OR,
++        TargetOpcode::G_XOR,   TargetOpcode::G_UMAX, TargetOpcode::G_SMIN,
++        TargetOpcode::G_UMIN}; // TODO: extend list
++    bool IsCommutable =
++        std::find(CommOps.begin(), CommOps.end(), Op) != CommOps.end();
++    // RegisterNode* LeftReg = static_cast<RegisterNode*>(Left.get());
++    // RegisterNode* RightReg = static_cast<RegisterNode*>(Right.get());
++    // bool LeftImm = (LeftReg != 0) ? LeftReg->IsImm : false;
++    // bool RightImm = (RightReg != 0) ? RightReg->IsImm : false;
++    bool LeftImm = Left->IsImm;
++    bool RightImm = Right->IsImm;
++    bool DoSwap = IsCommutable && LeftImm && !RightImm;
++    std::string TypeStr = lltToString(Type);
++    std::string LhsTypeStr = lltToString(Left->Type);
++    std::string RhsTypeStr = lltToString(Right->Type);
++
++    // Explicitly specifying types for all ops increases pattern compile time
++    // significantly, so we only do for ops where deduction fails otherwise.
++    bool PrintType = false;
++    bool PrintSrcTypes = false;
++    PrintType |= Type.getSizeInBits() != XLen;
++    switch (Op) {
++    case TargetOpcode::G_SHL:
++    case TargetOpcode::G_LSHR:
++    case TargetOpcode::G_ASHR:
++    case TargetOpcode::G_PTR_ADD:
++      PrintType |= true;
++      PrintSrcTypes |= true;
++      break;
++    default:
++      break;
++    }
++    std::string LeftString = (DoSwap ? Right : Left)->patternString();
++    std::string RightString = (DoSwap ? Left : Right)->patternString();
++    if (PrintSrcTypes) {
++      LeftString =
++          "(" + (DoSwap ? RhsTypeStr : LhsTypeStr) + " " + LeftString + ")";
++      RightString =
++          "(" + (DoSwap ? LhsTypeStr : RhsTypeStr) + " " + RightString + ")";
++    }
++    std::string OpString = "(" + std::string(BinopStr.at(Op)) + " " +
++                           LeftString + ", " + RightString + ")";
++
++    if (PrintType)
++      return "(" + TypeStr + " " + OpString + ")";
++    return OpString;
++  }
++
++  LLT getRegisterTy(int OperandId) const override {
++    if (OperandId == -1)
++      return Type;
++
++    auto LeftT = Left->getRegisterTy(OperandId);
++    return LeftT.isValid() ? LeftT : Right->getRegisterTy(OperandId);
++  }
++
++  static bool classof(const PatternNode *Pat) {
++    return Pat->getKind() == PN_Binop;
++  }
++};
++
++struct CompareNode : public BinopNode {
++  CmpInst::Predicate Cond;
++
++  CompareNode(LLT Type, CmpInst::Predicate Cond,
++              std::unique_ptr<PatternNode> Left,
++              std::unique_ptr<PatternNode> Right)
++      : BinopNode(Type, ISD::SETCC, std::move(Left), std::move(Right)),
++        Cond(Cond) {}
++
++  std::string patternString() override {
++    std::string TypeStr = lltToString(Type);
++    std::string LhsTypeStr = lltToString(Left->Type);
++    std::string RhsTypeStr = lltToString(Right->Type);
++
++    return "(" + TypeStr + " (setcc (" + LhsTypeStr + " " +
++           Left->patternString() + "), (" + RhsTypeStr + " " +
++           Right->patternString() + "), " + CmpStr.at(Cond) + "))";
++  }
++};
++
++struct SelectNode : public PatternNode {
++  ISD::CondCode Cond;
++  std::unique_ptr<PatternNode> Left;
++  std::unique_ptr<PatternNode> Right;
++  std::unique_ptr<PatternNode> Tval;
++  std::unique_ptr<PatternNode> Fval;
++
++  SelectNode(LLT Type, ISD::CondCode Cond, std::unique_ptr<PatternNode> Left,
++             std::unique_ptr<PatternNode> Right,
++             std::unique_ptr<PatternNode> Tval,
++             std::unique_ptr<PatternNode> Fval)
++      : PatternNode(PN_Select, Type, false), Cond(Cond), Left(std::move(Left)),
++        Right(std::move(Right)), Tval(std::move(Tval)), Fval(std::move(Fval)) {}
++
++  std::string patternString() override {
++    std::string TypeStr = lltToString(Type);
++
++    return "(" + TypeStr + " (riscv_selectcc " + Left->patternString() + ", " +
++           Right->patternString() + ", " + CmpStr.at(Cond) + ", " +
++           Tval->patternString() + ", " + Fval->patternString() + "))";
++  }
++
++  LLT getRegisterTy(int OperandId) const override {
++    if (OperandId == -1)
++      return Type;
++
++    for (auto *Operand : {&Left, &Right, &Tval, &Fval}) {
++      auto T = (*Operand)->getRegisterTy(OperandId);
++      if (T.isValid())
++        return T;
++    }
++    return LLT();
++  }
++
++  static bool classof(const PatternNode *Pat) {
++    return Pat->getKind() == PN_Select;
++  }
++};
++
++struct UnopNode : public PatternNode {
++  int Op;
++  std::unique_ptr<PatternNode> Operand;
++
++  UnopNode(LLT Type, int Op, std::unique_ptr<PatternNode> Operand)
++      : PatternNode(PN_Unop, Type, false), Op(Op), Operand(std::move(Operand)) {
++  }
++
++  std::string patternString() override {
++    static const std::unordered_map<int, std::string> UnopStr = {
++        {TargetOpcode::G_ANYEXT, "anyext"},
++        {TargetOpcode::G_SEXT, "sext"},
++        {TargetOpcode::G_ZEXT, "zext"},
++        {TargetOpcode::G_VECREDUCE_ADD, "vecreduce_add"},
++        {TargetOpcode::G_TRUNC, "trunc"},
++        {TargetOpcode::G_BSWAP, "bswap"},
++        {TargetOpcode::G_BITREVERSE, "bitreverse"},
++        {TargetOpcode::G_BITCAST, "bitcast"},
++        {TargetOpcode::G_CTLZ, "ctlz"},
++        {TargetOpcode::G_CTTZ, "cttz"},
++        {TargetOpcode::G_CTLZ_ZERO_UNDEF, "ctlz_zero_undef"},
++        {TargetOpcode::G_CTTZ_ZERO_UNDEF, "cttz_zero_undef"},
++        {TargetOpcode::G_CTPOP, "ctpop"},
++        {TargetOpcode::G_ABS, "abs"}};
++
++    std::string TypeStr = lltToString(Type);
++
++    // ignore bitcast ops for now
++    if ((Op == TargetOpcode::G_BITCAST) || (Op == TargetOpcode::G_CONSTANT_FOLD_BARRIER))
++      return Operand->patternString();
++
++    return "(" + TypeStr + " (" + std::string(UnopStr.at(Op)) + " " +
++           Operand->patternString() + "))";
++  }
++
++  LLT getRegisterTy(int OperandId) const override {
++    if (OperandId == -1 && Op != TargetOpcode::G_BITCAST && Op != TargetOpcode::G_CONSTANT_FOLD_BARRIER)
++      return Type;
++    return Operand->getRegisterTy(OperandId);
++  }
++
++  static bool classof(const PatternNode *Pat) {
++    return Pat->getKind() == PN_Unop;
++  }
++};
++
++struct ConstantNode : public PatternNode {
++  uint64_t Constant;
++  ConstantNode(LLT Type, uint64_t Const)
++      : PatternNode(PN_Constant, Type, true), Constant(Const) {}
++
++  std::string patternString() override {
++    std::string ConstantStr = (XLen == 64) ? std::to_string((int64_t)Constant)
++                                           : std::to_string((int32_t)Constant);
++    if (Type.isFixedVector()) {
++
++      std::string TypeStr = lltToString(Type);
++      return "(" + TypeStr + " (" + RegT + " " + ConstantStr + "))";
++    }
++    return "(" + lltToString(Type) + " " + ConstantStr + ")";
++  }
++
++  static bool classof(const PatternNode *Pat) {
++    return Pat->getKind() == PN_Constant;
++  }
++};
++
++struct RegisterNode : public PatternNode {
++
++  StringRef Name;
++  int Size;
++  bool Sext;
++
++  size_t RegIdx;
++
++  RegisterNode(LLT Type, StringRef Name, size_t RegIdx, bool IsImm, int Size,
++               bool Sext)
++      : PatternNode(PN_Register, Type, IsImm), Name(Name), Size(Size),
++        Sext(Sext), RegIdx(RegIdx) {}
++
++  std::string patternString() override {
++    std::string TypeStr = lltToString(Type);
++    bool PrintType = Type.isPointer();
++
++    if (IsImm) {
++      // Immediate Operands
++      return ("(" + RegT + " ") + (Sext ? "simm" : "uimm") +
++             std::to_string(Size) + ":$" + std::string(Name) + ")";
++    }
++
++    // Vector Types (currently rv32 only)
++    if (Type.isFixedVector()) {
++      assert((uint64_t)Size == 32 && XLen == 32);
++      std::string Str;
++      if (Type.isFixedVector() && Type.getSizeInBits() == 32 &&
++          Type.getElementType().isScalar() &&
++          Type.getElementType().getSizeInBits() == 8)
++        Str = "GPR32V4:$" + std::string(Name);
++      if (Type.isFixedVector() && Type.getSizeInBits() == 32 &&
++          Type.getElementType().isScalar() &&
++          Type.getElementType().getSizeInBits() == 16)
++        Str = "GPR32V2:$" + std::string(Name);
++      if (PrintType)
++        return "(" + TypeStr + " " + Str + ")";
++      return Str;
++    }
++
++    // Full-Size Register Operands
++    if (Size == 32 || Size == 64) {
++      std::string Str = "GPR:$" + std::string(Name);
++      PrintType |= Size == 32 && XLen == 64;
++      if (PrintType)
++        return "(" + TypeStr + " " + Str + ")";
++      return Str;
++    }
++
++    abort();
++  }
++
++  static bool classof(const PatternNode *Pat) {
++    return Pat->getKind() == PN_Register;
++  }
++};
++
++struct LoadNode : public PatternNode {
++
++  int Size;
++  bool Sext;
++  std::unique_ptr<PatternNode> Addr;
++
++  LoadNode(int Size, bool Sext, std::unique_ptr<PatternNode> Addr)
++      : PatternNode(PN_Load, LLT::scalar(Size), false), Size(Size), Sext(Sext),
++        Addr(std::move(Addr)) {}
++
++  std::string patternString() override {
++    if ((size_t)Size == XLen)
++      return "(" + RegT + " (load " + Addr->patternString() + "))";
++    assert((size_t)Size < XLen && "load size > xlen");
++    assert(Size >= 8 && "load size < 8");
++    assert(Size % 8 == 0 && "load size unaligned");
++    // TODO: use AddrRegImm?
++    // TODO: how about anyext?
++    if (Sext)
++      return "(" + RegT + " (sextloadi" + std::to_string(Size) + " " +
++             Addr->patternString() + "))";
++    return "(" + RegT + " (zextloadi" + std::to_string(Size) + " " +
++           Addr->patternString() + "))";
++    abort();
++  }
++
++  static bool classof(const PatternNode *p) { return p->getKind() == PN_Load; }
++};
++
++struct CastNode : public PatternNode {
++  std::unique_ptr<PatternNode> Value;
++
++  CastNode(LLT Type, std::unique_ptr<PatternNode> Value)
++      : PatternNode(PN_Cast, Type, false), Value(std::move(Value)) {}
++
++  std::string patternString() override {
++    auto LLTString = lltToString(Type);
++    return "(" + LLTString + " " + Value->patternString() + ")";
++  }
++
++  static bool classof(const PatternNode *p) { return p->getKind() == PN_Cast; }
++};
++
++struct StoreNode : public PatternNode {
++  std::unique_ptr<PatternNode> Value;
++  std::unique_ptr<PatternNode> Addr;
++
++  StoreNode(LLT Type, std::unique_ptr<PatternNode> Value,
++            std::unique_ptr<PatternNode> Addr)
++      : PatternNode(PN_Store, Type, false), Value(std::move(Value)),
++        Addr(std::move(Addr)) {}
++
++  std::string patternString() override {
++
++    std::string ValuePat = Value->patternString();
++    std::string AddrPat = Addr->patternString();
++
++    if (Type.getSizeInBits() == XLen)
++      return "(store (XLenVT " + ValuePat + "), " + AddrPat + ")";
++    if (Type.getSizeInBits() == 8)
++      return "(truncstorei8 (XLenVT " + ValuePat + "), " + AddrPat + ")";
++    if (Type.getSizeInBits() == 16)
++      return "(truncstorei16 (XLenVT " + ValuePat + "), " + AddrPat + ")";
++    if (Type.getSizeInBits() == 32)
++      return "(truncstorei32 (XLenVT " + ValuePat + "), " + AddrPat + ")";
++    abort();
++  }
++
++  static bool classof(const PatternNode *p) { return p->getKind() == PN_Cast; }
++};
++
++using PatternOrError = std::pair<PatternError, std::unique_ptr<PatternNode>>;
++static PatternOrError pError(PatternErrorT Type, MachineInstr *Inst) {
++  return std::make_pair(PatternError(Type, Inst), nullptr);
++}
++static PatternOrError PError(PatternError Error) {
++  return std::make_pair(Error, nullptr);
++}
++static PatternOrError PError(PatternErrorT Type) {
++  return std::make_pair(PatternError(Type), nullptr);
++}
++static PatternOrError PPattern(std::unique_ptr<PatternNode> Pattern) {
++  return std::make_pair(PatternError(SUCCESS), std::move(Pattern));
++}
++
++static PatternOrError traverse(MachineRegisterInfo &MRI, MachineInstr &Cur);
++
++/*static PatternOrError traverseOperand(MachineRegisterInfo &MRI,
++                                      MachineInstr &Cur, int Start) {
++  assert(Cur.getOperand(1).isReg() && "expected register");
++  auto *Op = MRI.getOneDef(Cur.getOperand(1).getReg());
++  if (!Op)
++    return PError(FORMAT);
++  auto [Err, Node] = traverse(MRI, *Op->getParent());
++  if (Err)
++    return PError(Err);
++
++  return PPattern(std::move(Node));
++}*/
++
++static std::tuple<PatternError, std::unique_ptr<PatternNode>,
++                  std::unique_ptr<PatternNode>, std::unique_ptr<PatternNode>>
++traverseTernopOperands(MachineRegisterInfo &MRI, MachineInstr &Cur,
++                       int Start = 1) {
++  assert(Cur.getOperand(Start).isReg() && "expected register");
++  auto *First = MRI.getOneDef(Cur.getOperand(Start).getReg());
++  if (!First)
++    return std::make_tuple(PatternError(FORMAT, &Cur), nullptr, nullptr,
++                           nullptr);
++  assert(Cur.getOperand(Start + 1).isReg() && "expected register");
++  auto *Second = MRI.getOneDef(Cur.getOperand(Start + 1).getReg());
++  if (!Second)
++    return std::make_tuple(PatternError(FORMAT, &Cur), nullptr, nullptr,
++                           nullptr);
++  assert(Cur.getOperand(Start + 2).isReg() && "expected register");
++  auto *Third = MRI.getOneDef(Cur.getOperand(Start + 2).getReg());
++  if (!Third)
++    return std::make_tuple(PatternError(FORMAT, &Cur), nullptr, nullptr,
++                           nullptr);
++
++  auto [ErrFirst, NodeFirst] = traverse(MRI, *First->getParent());
++  if (ErrFirst)
++    return std::make_tuple(ErrFirst, nullptr, nullptr, nullptr);
++
++  auto [ErrSecond, NodeSecond] = traverse(MRI, *Second->getParent());
++  if (ErrSecond)
++    return std::make_tuple(ErrSecond, nullptr, nullptr, nullptr);
++
++  auto [ErrThird, NodeThird] = traverse(MRI, *Third->getParent());
++  if (ErrThird)
++    return std::make_tuple(ErrThird, nullptr, nullptr, nullptr);
++
++  return std::make_tuple(SUCCESS, std::move(NodeFirst), std::move(NodeSecond),
++                         std::move(NodeThird));
++}
++
++static std::tuple<PatternError, std::unique_ptr<PatternNode>,
++                  std::unique_ptr<PatternNode>>
++traverseBinopOperands(MachineRegisterInfo &MRI, MachineInstr &Cur,
++                      int Start = 1) {
++  assert(Cur.getOperand(Start).isReg() && "expected register");
++  auto *LHS = MRI.getOneDef(Cur.getOperand(Start).getReg());
++  if (!LHS)
++    return std::make_tuple(PatternError(FORMAT, &Cur), nullptr, nullptr);
++  assert(Cur.getOperand(Start + 1).isReg() && "expected register");
++  auto *RHS = MRI.getOneDef(Cur.getOperand(Start + 1).getReg());
++  if (!RHS)
++    return std::make_tuple(PatternError(FORMAT, &Cur), nullptr, nullptr);
++
++  auto [ErrL, NodeL] = traverse(MRI, *LHS->getParent());
++  if (ErrL)
++    return std::make_tuple(ErrL, nullptr, nullptr);
++
++  auto [ErrR, NodeR] = traverse(MRI, *RHS->getParent());
++  if (ErrR)
++    return std::make_tuple(ErrR, nullptr, nullptr);
++  return std::make_tuple(SUCCESS, std::move(NodeL), std::move(NodeR));
++}
++
++static std::tuple<PatternError, std::unique_ptr<PatternNode>>
++traverseUnopOperands(MachineRegisterInfo &MRI, MachineInstr &Cur,
++                     int Start = 1) {
++  assert(Cur.getOperand(Start).isReg() && "expected register");
++  auto *RHS = MRI.getOneDef(Cur.getOperand(Start).getReg());
++  if (!RHS)
++    return std::make_tuple(PatternError(FORMAT, &Cur), nullptr);
++
++  auto [ErrR, NodeR] = traverse(MRI, *RHS->getParent());
++  if (ErrR)
++    return std::make_tuple(ErrR, nullptr);
++  return std::make_tuple(SUCCESS, std::move(NodeR));
++}
++
++static std::tuple<PatternError, std::vector<std::unique_ptr<PatternNode>>>
++traverseNOpOperands(MachineRegisterInfo &MRI, MachineInstr &Cur, size_t N,
++                    int Start = 1) {
++  std::vector<std::unique_ptr<PatternNode>> Operands(N);
++  for (size_t I = 0; I < N; I++) {
++    // llvm::outs() << "i=" << i << '\n';
++    assert(Cur.getOperand(Start + I).isReg() && "expected register");
++    auto *Node = MRI.getOneDef(Cur.getOperand(Start + I).getReg());
++    if (!Node) {
++      // llvm::outs() << "Err" << '\n';
++      return std::make_tuple(PatternError(FORMAT, &Cur),
++                             std::vector<std::unique_ptr<PatternNode>>());
++    }
++
++    auto [Err_, Node_] = traverse(MRI, *Node->getParent());
++    if (Err_) {
++      // llvm::outs() << "Err2" << '\n';
++      return std::make_tuple(Err_, std::vector<std::unique_ptr<PatternNode>>());
++    }
++    // return std::make_tuple(SUCCESS, std::move(NodeR));
++    Operands[I] = std::move(Node_);
++  }
++  return std::make_tuple(SUCCESS, std::move(Operands));
++}
++
++static int getArgIdx(MachineRegisterInfo &MRI, Register Reg) {
++  auto It = std::find_if(MRI.livein_begin(), MRI.livein_end(),
++                         [&](std::pair<MCRegister, Register> const &E) {
++                           return E.first == Reg.asMCReg();
++                         });
++
++  if (It == MRI.livein_end())
++    return -1;
++  return It - MRI.livein_begin();
++}
++
++static CDSLInstr::Field const *getArgField(MachineRegisterInfo &MRI,
++                                           Register Reg) {
++  uint Idx = getArgIdx(MRI, Reg);
++  if (Idx > CurInstr->fields.size())
++    return nullptr;
++  return &CurInstr->fields[Idx];
++}
++
++static auto getArgInfo(MachineRegisterInfo &MRI, Register Reg) {
++  return std::make_pair(getArgIdx(MRI, Reg), getArgField(MRI, Reg));
++}
++static PatternOrError traverseMemLoad(MachineRegisterInfo &MRI,
++                                      MachineInstr &Cur, int ReadSize,
++                                      MachineInstr *AddrI) {
++  MayLoad = 1;
++  if (AddrI->getOpcode() == TargetOpcode::G_INTTOPTR) {
++    auto *AddrInt = MRI.getOneDef(AddrI->getOperand(1).getReg());
++    auto [Err, Node] = traverse(MRI, *AddrInt->getParent());
++    if (Err)
++      return PError(Err);
++    bool Sext = Cur.getOpcode() == TargetOpcode::G_SEXTLOAD;
++    return PPattern(
++        std::make_unique<LoadNode>(ReadSize, Sext, std::move(Node)));
++  }
++  if (AddrI->getOpcode() == TargetOpcode::G_PTR_ADD) {
++    auto [Err, Node] = traverse(MRI, *AddrI);
++    if (Err)
++      return PError(Err);
++    bool Sext = Cur.getOpcode() == TargetOpcode::G_SEXTLOAD;
++    return PPattern(
++        std::make_unique<LoadNode>(ReadSize, Sext, std::move(Node)));
++  }
++  abort();
++}
++
++static PatternOrError traverseRegLoad(MachineRegisterInfo &MRI,
++                                      MachineInstr &Cur, int ReadSize,
++                                      MachineInstr *AddrI) {
++
++  int ReadOffset = 0;
++
++  if (AddrI->getOpcode() == TargetOpcode::G_PTR_ADD) {
++    assert(AddrI->getOperand(1).isReg());
++    auto *BaseAddr = MRI.getOneDef(AddrI->getOperand(1).getReg())->getParent();
++    auto *Offset = MRI.getOneDef(AddrI->getOperand(2).getReg())->getParent();
++
++    if (Offset->getOpcode() != TargetOpcode::G_CONSTANT)
++      return traverseMemLoad(MRI, Cur, ReadSize, AddrI);
++
++    AddrI = BaseAddr;
++    ReadOffset = Offset->getOperand(1).getCImm()->getLimitedValue();
++  }
++  if (AddrI->getOpcode() == TargetOpcode::G_SELECT) {
++    // TODO: implement this!
++    return pError(FORMAT_LOAD, AddrI);
++  }
++  if (AddrI->getOpcode() != TargetOpcode::COPY)
++    return pError(FORMAT_LOAD, AddrI);
++
++  assert(Cur.getOperand(1).isReg() && "expected register");
++  auto AddrLI = AddrI->getOperand(1).getReg();
++  if (!MRI.isLiveIn(AddrLI) || !AddrLI.isPhysical())
++    return pError(FORMAT_LOAD, AddrI);
++
++  auto [Idx, Field] = getArgInfo(MRI, AddrLI);
++  if (Field == nullptr)
++    return pError(FORMAT_LOAD, AddrI);
++
++  auto Type = MRI.getType(Cur.getOperand(0).getReg());
++  PatternArgs[Idx].Llt = Type;
++  PatternArgs[Idx].ArgTypeStr = lltToRegTypeStr(PatternArgs[Idx].Llt);
++  PatternArgs[Idx].In = true;
++
++  assert(Cur.getOperand(0).isReg() && "expected register");
++  std::unique_ptr<PatternNode> Node = std::make_unique<RegisterNode>(
++      Type, Field->ident, Idx, false, Type.getSizeInBits(), false);
++
++  bool SizeMismatch = (int)Type.getSizeInBits() != ReadSize;
++
++  if (Cur.getOpcode() == TargetOpcode::G_ZEXTLOAD && SizeMismatch) {
++    if (ReadOffset != 0)
++      Node = std::make_unique<BinopNode>(
++          Type, TargetOpcode::G_LSHR, std::move(Node),
++          std::make_unique<ConstantNode>(Type, ReadOffset * 8));
++    if ((uint64_t)(ReadSize + ReadOffset * 8) < XLen) {
++      Node = std::make_unique<BinopNode>(
++          Type, TargetOpcode::G_AND, std::move(Node),
++          std::make_unique<ConstantNode>(Type, (1UL << ReadSize) - 1));
++    }
++  } else if (Cur.getOpcode() == TargetOpcode::G_SEXTLOAD && SizeMismatch) {
++    int Shamt = XLen - ReadSize - ReadOffset * 8;
++    auto Left = Shamt == 0 ? std::move(Node)
++                           : std::make_unique<BinopNode>(
++                                 Type, TargetOpcode::G_SHL, std::move(Node),
++                                 std::make_unique<ConstantNode>(Type, Shamt));
++
++    Node = std::make_unique<BinopNode>(
++        Type, TargetOpcode::G_ASHR, std::move(Left),
++        std::make_unique<ConstantNode>(Type, XLen - ReadSize));
++  }
++
++  return PPattern(std::move(Node));
++}
++
++static PatternOrError traverse(MachineRegisterInfo &MRI, MachineInstr &Cur) {
++
++  switch (Cur.getOpcode()) {
++  case TargetOpcode::G_ADD:
++  case TargetOpcode::G_PTR_ADD:
++  case TargetOpcode::G_SUB:
++  case TargetOpcode::G_MUL:
++  case TargetOpcode::G_UMULH:
++  case TargetOpcode::G_SMULH:
++  case TargetOpcode::G_SDIV:
++  case TargetOpcode::G_UDIV:
++  case TargetOpcode::G_SREM:
++  case TargetOpcode::G_UREM:
++  case TargetOpcode::G_SADDSAT:
++  case TargetOpcode::G_UADDSAT:
++  case TargetOpcode::G_SSUBSAT:
++  case TargetOpcode::G_USUBSAT:
++  case TargetOpcode::G_SSHLSAT:
++  case TargetOpcode::G_USHLSAT:
++  case TargetOpcode::G_SMULFIX:
++  case TargetOpcode::G_UMULFIX:
++  case TargetOpcode::G_SMULFIXSAT:
++  case TargetOpcode::G_UMULFIXSAT:
++  case TargetOpcode::G_SDIVFIX:
++  case TargetOpcode::G_UDIVFIX:
++  case TargetOpcode::G_SDIVFIXSAT:
++  case TargetOpcode::G_UDIVFIXSAT:
++  case TargetOpcode::G_AND:
++  case TargetOpcode::G_OR:
++  case TargetOpcode::G_XOR:
++  case TargetOpcode::G_SMAX:
++  case TargetOpcode::G_UMAX:
++  case TargetOpcode::G_SMIN:
++  case TargetOpcode::G_UMIN:
++  case TargetOpcode::G_EXTRACT_VECTOR_ELT:
++  case TargetOpcode::G_ROTR:
++  case TargetOpcode::G_ROTL:
++  case TargetOpcode::G_SHL:
++  case TargetOpcode::G_LSHR:
++  case TargetOpcode::G_ASHR: {
++
++    auto [Err, NodeL, NodeR] = traverseBinopOperands(MRI, Cur);
++    if (Err)
++      return std::make_pair(Err, nullptr);
++
++    assert(Cur.getOperand(0).isReg() && "expected register");
++    auto Node = std::make_unique<BinopNode>(
++        MRI.getType(Cur.getOperand(0).getReg()), Cur.getOpcode(),
++        std::move(NodeL), std::move(NodeR));
++
++    return std::make_pair(SUCCESS, std::move(Node));
++  }
++  case TargetOpcode::G_CONSTANT_FOLD_BARRIER:
++  case TargetOpcode::G_ANYEXT:
++  case TargetOpcode::G_SEXT:
++  case TargetOpcode::G_ZEXT:
++  case TargetOpcode::G_VECREDUCE_ADD:
++  case TargetOpcode::G_TRUNC:
++  case TargetOpcode::G_BSWAP:
++  case TargetOpcode::G_BITREVERSE:
++  case TargetOpcode::G_CTLZ:
++  case TargetOpcode::G_CTTZ:
++  case TargetOpcode::G_CTLZ_ZERO_UNDEF:
++  case TargetOpcode::G_CTTZ_ZERO_UNDEF:
++  case TargetOpcode::G_CTPOP:
++  case TargetOpcode::G_ABS: {
++
++    auto [Err, NodeR] = traverseUnopOperands(MRI, Cur);
++    if (Err)
++      return std::make_pair(Err, nullptr);
++
++    assert(Cur.getOperand(0).isReg() && "expected register");
++    auto Node =
++        std::make_unique<UnopNode>(MRI.getType(Cur.getOperand(0).getReg()),
++                                   Cur.getOpcode(), std::move(NodeR));
++
++    return std::make_pair(SUCCESS, std::move(Node));
++  }
++  case TargetOpcode::G_BITCAST: {
++    assert(Cur.getOperand(1).isReg() && "expected register");
++    auto *Operand = MRI.getOneDef(Cur.getOperand(1).getReg());
++    if (!Operand)
++      return std::make_pair(PatternError(FORMAT_LOAD, &Cur), nullptr);
++
++    auto [Err, Node] = traverse(MRI, *Operand->getParent());
++    if (Err)
++      return std::make_pair(Err, nullptr);
++
++    // if the bitcasted value is a register access, we need to patch the
++    // register access type
++    if (auto *AsRegNode = llvm::dyn_cast<RegisterNode>(Node.get())) {
++      assert(Cur.getOperand(0).isReg() && "expected register");
++      AsRegNode->Type = MRI.getType(Cur.getOperand(0).getReg());
++      PatternArgs[AsRegNode->RegIdx].ArgTypeStr =
++          lltToRegTypeStr(AsRegNode->Type);
++    }
++
++    return std::make_pair(SUCCESS, std::move(Node));
++  }
++  case TargetOpcode::G_LOAD:
++  case TargetOpcode::G_ZEXTLOAD:
++  case TargetOpcode::G_SEXTLOAD: {
++
++    MachineMemOperand *MMO = *Cur.memoperands_begin();
++    int ReadSize = MMO->getSizeInBits().getValue();
++
++    assert(Cur.getOperand(1).isReg() && "expected register");
++    auto *Addr = MRI.getOneDef(Cur.getOperand(1).getReg());
++    if (!Addr)
++      return std::make_pair(PatternError(FORMAT_LOAD, &Cur), nullptr);
++    auto *AddrI = Addr->getParent();
++
++    if (AddrI->getOpcode() == TargetOpcode::G_INTTOPTR)
++      return traverseMemLoad(MRI, Cur, ReadSize, AddrI);
++    return traverseRegLoad(MRI, Cur, ReadSize, AddrI);
++  }
++  case TargetOpcode::G_CONSTANT: {
++    auto *Imm = Cur.getOperand(1).getCImm();
++    assert(Cur.getOperand(0).isReg() && "expected register");
++    return std::make_pair(SUCCESS, std::make_unique<ConstantNode>(
++                                       MRI.getType(Cur.getOperand(0).getReg()),
++                                       Imm->getLimitedValue()));
++  }
++  case TargetOpcode::G_IMPLICIT_DEF: {
++    assert(Cur.getOperand(0).isReg() && "expected register");
++    return std::make_pair(SUCCESS,
++                          std::make_unique<ConstantNode>(
++                              MRI.getType(Cur.getOperand(0).getReg()), 0));
++  }
++  case TargetOpcode::G_ICMP: {
++    auto Pred = Cur.getOperand(1);
++    auto [Err, NodeL, NodeR] = traverseBinopOperands(MRI, Cur, 2);
++    if (Err)
++      return std::make_pair(Err, nullptr);
++
++    assert(Cur.getOperand(0).isReg() && "expected register");
++    return std::make_pair(SUCCESS, std::make_unique<CompareNode>(
++                                       MRI.getType(Cur.getOperand(0).getReg()),
++                                       (CmpInst::Predicate)Pred.getPredicate(),
++                                       std::move(NodeL), std::move(NodeR)));
++  }
++  case TargetOpcode::COPY: {
++    // Immediate Operands
++    assert(Cur.getOperand(1).isReg() && "expected register");
++    auto Reg = Cur.getOperand(1).getReg();
++
++    // Copying from a physical reg means this is a function argument,
++    // so a register or immediate value in the behavior function.
++    if (Reg.isPhysical()) {
++      auto [Idx, Field] = getArgInfo(MRI, Reg);
++
++      PatternArgs[Idx].In = true;
++      PatternArgs[Idx].Llt = LLT();
++      PatternArgs[Idx].ArgTypeStr =
++          makeImmTypeStr(Field->len, Field->type & CDSLInstr::SIGNED);
++
++      if (Field == nullptr)
++        return std::make_pair(FORMAT_IMM, nullptr);
++
++      assert(Cur.getOperand(0).isReg() && "expected register");
++      return std::make_pair(
++          SUCCESS, std::make_unique<RegisterNode>(
++                       MRI.getType(Cur.getOperand(0).getReg()), Field->ident,
++                       Idx, true, Field->len, Field->type & CDSLInstr::SIGNED));
++    }
++
++    // Else COPY is just a pass-through.
++    auto [Err, Node] = traverseUnopOperands(MRI, Cur);
++    return std::make_pair(Err, std::move(Node));
++  }
++  case TargetOpcode::G_INTTOPTR: {
++    auto [Err, Node] = traverseUnopOperands(MRI, Cur);
++    if (Err)
++      return PError(Err);
++
++    return PPattern(
++        std::make_unique<CastNode>(LLT::pointer(0, XLen), std::move(Node)));
++  }
++  case TargetOpcode::G_BUILD_VECTOR: {
++    size_t N = Cur.getNumOperands();
++    auto [Err, operands] = traverseNOpOperands(MRI, Cur, N - 1);
++    if (Err)
++      return std::make_pair(Err, nullptr);
++
++    assert(Cur.getOperand(0).isReg() && "expected register");
++
++    auto Node =
++        std::make_unique<NOpNode>(MRI.getType(Cur.getOperand(0).getReg()),
++                                  Cur.getOpcode(), std::move(operands));
++
++    return std::make_pair(SUCCESS, std::move(Node));
++  }
++  case TargetOpcode::G_FSHL:
++  case TargetOpcode::G_FSHR:
++  case TargetOpcode::G_SELECT:
++  case TargetOpcode::G_INSERT_VECTOR_ELT: {
++    auto [Err, NodeFirst, NodeSecond, NodeThird] =
++        traverseTernopOperands(MRI, Cur);
++    if (Err)
++      return std::make_pair(Err, nullptr);
++
++    assert(Cur.getOperand(0).isReg() && "expected register");
++    auto Node = std::make_unique<TernopNode>(
++        MRI.getType(Cur.getOperand(0).getReg()), Cur.getOpcode(),
++        std::move(NodeFirst), std::move(NodeSecond), std::move(NodeThird));
++
++    return std::make_pair(SUCCESS, std::move(Node));
++  }
++  case TargetOpcode::G_SHUFFLE_VECTOR: {
++    assert(Cur.getOperand(1).isReg() && "expected register");
++    auto *First = MRI.getOneDef(Cur.getOperand(1).getReg());
++    if (!First)
++      return std::make_pair(PatternError(FORMAT, &Cur), nullptr);
++    assert(Cur.getOperand(2).isReg() && "expected register");
++    auto *Second = MRI.getOneDef(Cur.getOperand(2).getReg());
++    if (!Second)
++      return std::make_pair(PatternError(FORMAT, &Cur), nullptr);
++    assert(Cur.getOperand(3).isShuffleMask() && "expected shufflemask");
++    ArrayRef<int> Mask = Cur.getOperand(3).getShuffleMask();
++
++    auto [ErrFirst, NodeFirst] = traverse(MRI, *First->getParent());
++    if (ErrFirst)
++      return std::make_pair(ErrFirst, nullptr);
++
++    auto [ErrSecond, NodeSecond] = traverse(MRI, *Second->getParent());
++    if (ErrSecond)
++      return std::make_pair(ErrSecond, nullptr);
++
++    assert(Cur.getOperand(0).isReg() && "expected register");
++    auto Node = std::make_unique<ShuffleNode>(
++        MRI.getType(Cur.getOperand(0).getReg()), Cur.getOpcode(),
++        std::move(NodeFirst), std::move(NodeSecond), Mask);
++
++    return std::make_pair(SUCCESS, std::move(Node));
++  }
++  }
++
++  return std::make_pair(PatternError(FORMAT, &Cur), nullptr);
++}
++
++static PatternOrError traverseRegStore(size_t Idx, MachineRegisterInfo &MRI,
++                                       MachineInstr &Root) {
++  LLT Type;
++  if (Root.getOpcode() == TargetOpcode::G_BITCAST)
++    Type = MRI.getType(Root.getOperand(1).getReg());
++  else
++    Type = MRI.getType(Root.getOperand(0).getReg());
++
++  PatternArgs[Idx].Out = true;
++  PatternArgs[Idx].Llt = Type;
++  PatternArgs[Idx].ArgTypeStr = lltToRegTypeStr(Type);
++
++  return traverse(MRI, Root);
++}
++
++static PatternOrError traverseMemStore(LLT Type, MachineRegisterInfo &MRI,
++                                       MachineInstr &Value,
++                                       MachineInstr &Addr) {
++  auto ValueP = traverse(MRI, Value);
++  if (ValueP.first)
++    return PError(ValueP.first);
++  auto AddrP = traverse(MRI, Addr);
++  if (AddrP.first)
++    return PError(AddrP.first);
++
++  MayStore = 1;
++
++  return PPattern(std::make_unique<StoreNode>(Type, std::move(ValueP.second),
++                                              std::move(AddrP.second)));
++}
++
++static PatternOrError traverseStore(MachineRegisterInfo &MRI,
++                                    MachineInstr &Store) {
++  MachineMemOperand *MMO = *Store.memoperands_begin();
++
++  auto *ValueR = MRI.getOneDef(Store.getOperand(0).getReg());
++  if (ValueR == nullptr)
++    return pError(FORMAT_STORE, &Store);
++  auto *ValueI = ValueR->getParent();
++
++  auto *Addr = MRI.getOneDef(Store.getOperand(1).getReg());
++  if (Addr == nullptr)
++    return pError(FORMAT_STORE, &Store);
++
++  auto *AddrD = MRI.getOneDef(Addr->getReg());
++  if (AddrD == nullptr)
++    return pError(FORMAT_STORE, &Store);
++
++  auto *AddrI = MRI.getOneDef(AddrD->getReg())->getParent();
++  if (AddrI->getOpcode() == TargetOpcode::COPY) {
++    auto Idx = getArgIdx(MRI, AddrI->getOperand(1).getReg());
++    if (Idx != -1) {
++      if (MMO->getSizeInBits() != XLen && MMO->getSizeInBits() != 32)
++        return pError(FORMAT_STORE, &Store);
++      return traverseRegStore(Idx, MRI, *ValueI);
++    }
++  }
++
++  return traverseMemStore(MMO->getType(), MRI, *ValueI, *AddrI);
++}
++
++static PatternOrError generatePattern(MachineFunction &MF) {
++
++  if (MF.size() != 1)
++    return std::make_pair(MULTIPLE_BLOCKS, nullptr);
++
++  MachineBasicBlock &BB = *MF.begin();
++  MachineRegisterInfo &MRI = MF.getRegInfo();
++
++  auto Instrs = BB.instr_rbegin();
++  auto InstrsEnd = BB.instr_rend();
++
++  // We expect the pattern block to end with a return immediately preceeded by a
++  // store which stores the destination register value.
++  if (Instrs == InstrsEnd || !Instrs->isReturn())
++    return PError(FORMAT_STORE);
++  Instrs++;
++  if (Instrs == InstrsEnd || Instrs->getOpcode() != TargetOpcode::G_STORE)
++    return PError(FORMAT_STORE);
++
++  auto Result = traverseStore(MRI, *Instrs);
++  // Return on error
++  if (Result.first)
++    return Result;
++
++  Instrs++;
++
++  for (; Instrs != InstrsEnd; Instrs++)
++    if (Instrs->getOpcode() == TargetOpcode::G_STORE) {
++      MachineInstr &MI = *Instrs;
++      return pError(PatternErrorT::MULTIPLE_STORES, &MI);
++    }
++
++  return Result;
++}
++
++bool PatternGen::runOnMachineFunction(MachineFunction &MF) {
++
++  // for convenience
++  XLen = PatternGenArgs::Args.Is64Bit ? 64 : 32;
++  RegT = PatternGenArgs::Args.Is64Bit ? "i64" : "i32";
++  MayLoad = 0;
++  MayStore = 0;
++
++  std::string InstName = MF.getName().str().substr(4);
++  std::string InstNameO = InstName;
++  ++PatternGenNumInstructionsProcessed;
++  {
++    auto It = std::find_if(
++        PatternGenArgs::Instrs->begin(), PatternGenArgs::Instrs->end(),
++        [&](CDSLInstr const &Inst) { return Inst.name == InstName; });
++    assert(It != PatternGenArgs::Instrs->end() &&
++           "implementation function without instruction definition");
++    CurInstr = It.base();
++  }
++
++  // We use the PatternArgs vector to store additional information
++  // about parameters that may be found during pattern gen.
++  PatternArgs.clear();
++  PatternArgs.append(CurInstr->fields.size(), PatternArg());
++
++  auto [Err, Node] = generatePattern(MF);
++  if (Err) {
++    llvm::errs() << "Pattern Generation failed for " << MF.getName() << ": "
++                 << Errors[Err.Type] << '\n';
++    ++(*ErrorStats[Err.Type]);
++    if (Err.Inst) {
++      llvm::errs() << "Match failure occurred here:\n";
++      llvm::errs() << *Err.Inst << "\n";
++    }
++    ++PatternGenNumInstructionsFailing;
++    ++PatternGenNumPatternsFailing;
++    return true;
++  }
++
++  LLT OutType = LLT();
++  std::string OutsString;
++  std::string InsString;
++  for (size_t I = 0; I < CurInstr->fields.size() - 1; I++) {
++    // TODO: move to helper func
++
++    // handle unused operands
++    if (!PatternArgs[I].In && !PatternArgs[I].Out) {
++        llvm::errs() << "Pattern Generation failed for " << MF.getName() << ": "
++                     << "Operand '" << CurInstr->fields[I].ident << "' not used in pattern!\n";
++        ++PatternGenNumErrorUnusedOperand;
++        return true;
++    }
++
++    // check for missmatches between operands
++    if ((CurInstr->fields[I].type & CDSLInstr::IN) && !PatternArgs[I].In) {
++      llvm::errs() << "Pattern Generation failed for " << MF.getName() << ": "
++                   << "Operand '" << CurInstr->fields[I].ident << "' should be an input!\n";
++      ++PatternGenNumErrorOperandMissmatch;
++      return true;
++    }
++    if ((CurInstr->fields[I].type & CDSLInstr::OUT) && !PatternArgs[I].Out) {
++      llvm::errs() << "Pattern Generation failed for " << MF.getName() << ": "
++                   << "Operand '" << CurInstr->fields[I].ident << "' should be an output!\n";
++      ++PatternGenNumErrorOperandMissmatch;
++      return true;
++    }
++
++    if (PatternArgs[I].In) {
++      InsString += PatternArgs[I].ArgTypeStr + ":$" +
++                   std::string(CurInstr->fields[I].ident) + ", ";
++    }
++    if (PatternArgs[I].Out) {
++      bool IO = PatternArgs[I].In;
++      OutsString += PatternArgs[I].ArgTypeStr + ":$" +
++                    std::string(CurInstr->fields[I].ident) +
++                    (IO ? "_wb, " : ", ");
++
++      assert(!OutType.isValid());
++      OutType = PatternArgs[I].Llt;
++    }
++  }
++
++  llvm::outs() << "Pattern for " << InstName << ": " << Node->patternString()
++               << '\n';
++  ++PatternGenNumPatternsGenerated;
++
++
++  InsString = InsString.substr(0, InsString.size() - 2);
++  OutsString = OutsString.substr(0, OutsString.size() - 2);
++
++  auto &OutStream = *PatternGenArgs::OutStream;
++
++  OutStream << "let hasSideEffects = 0, mayLoad = " +
++                   std::to_string((int)MayLoad) +
++                   ", mayStore = " + std::to_string((int)MayStore) +
++                   ", "
++                   "isCodeGenOnly = 1";
++
++  OutStream << ", Constraints = \"";
++  {
++    std::string Constr = "";
++    for (size_t I = 0; I < CurInstr->fields.size(); I++) {
++      auto const &Field = CurInstr->fields[I];
++      if (PatternArgs[I].In && PatternArgs[I].Out)
++        Constr += "$" + std::string(Field.ident) + " = $" +
++                  std::string(Field.ident) + "_wb, ";
++    }
++    Constr = Constr.substr(0, Constr.size() - 2);
++    OutStream << Constr;
++  }
++  OutStream << "\" in ";
++  OutStream << "def " << InstName << "_ : RVInst_" << InstNameO << "<(outs "
++            << OutsString << "), (ins " << InsString << ")>;\n";
++
++  std::string PatternStr = Node->patternString();
++  std::string Code = "def : Pat<\n\t";
++
++  if (OutType.isValid())
++    Code += "(" + lltToString(OutType) + " " + PatternStr + "),\n\t(" +
++            InstName + "_ ";
++  else
++    Code += PatternStr + ",\n\t(" + InstName + "_ ";
++
++  Code += InsString;
++  Code += ")>;";
++  OutStream << "\n" << Code << "\n\n";
++
++  // Delete all instructions to avoid match failures if patterns are not
++  // included
++  for (auto &MBB : MF)
++    MBB.clear();
++
++  return true;
++}
++
+diff --git a/llvm/lib/Target/RISCV/AsmParser/RISCVAsmParser.cpp b/llvm/lib/Target/RISCV/AsmParser/RISCVAsmParser.cpp
+index a288e7d88..0cf879f7f 100644
+--- a/llvm/lib/Target/RISCV/AsmParser/RISCVAsmParser.cpp
++++ b/llvm/lib/Target/RISCV/AsmParser/RISCVAsmParser.cpp
+@@ -706,6 +706,8 @@ public:
+   bool isUImm16() const { return IsUImm<16>(); }
+   bool isUImm20() const { return IsUImm<20>(); }
+   bool isUImm32() const { return IsUImm<32>(); }
++  // RISCVAsmParser.cpp - riscv_operands - INSERTION_START
++  // RISCVAsmParser.cpp - riscv_operands - INSERTION_END
+ 
+   bool isUImm8GE32() const {
+     int64_t Imm;
+diff --git a/llvm/lib/Target/RISCV/GISel/RISCVLegalizerInfo.cpp b/llvm/lib/Target/RISCV/GISel/RISCVLegalizerInfo.cpp
+index f033ea725..886085d37 100644
+--- a/llvm/lib/Target/RISCV/GISel/RISCVLegalizerInfo.cpp
++++ b/llvm/lib/Target/RISCV/GISel/RISCVLegalizerInfo.cpp
+@@ -120,6 +120,9 @@ RISCVLegalizerInfo::RISCVLegalizerInfo(const RISCVSubtarget &ST)
+                         nxv32s16, nxv1s32, nxv2s32, nxv4s32, nxv8s32, nxv16s32,
+                         nxv1s64,  nxv2s64, nxv4s64, nxv8s64};
+ 
++// RISCVLegalizerInfo.cpp - riscv_legalizer_info - INSERTION_START
++// RISCVLegalizerInfo.cpp - riscv_legalizer_info - INSERTION_END
++
+   getActionDefinitionsBuilder({G_ADD, G_SUB, G_AND, G_OR, G_XOR})
+       .legalFor({s32, sXLen})
+       .legalIf(typeIsLegalIntOrFPVec(0, IntOrFPVecTys, ST))
+diff --git a/llvm/lib/Target/RISCV/MCTargetDesc/RISCVBaseInfo.h b/llvm/lib/Target/RISCV/MCTargetDesc/RISCVBaseInfo.h
+index 626206962..45ad60ca4 100644
+--- a/llvm/lib/Target/RISCV/MCTargetDesc/RISCVBaseInfo.h
++++ b/llvm/lib/Target/RISCV/MCTargetDesc/RISCVBaseInfo.h
+@@ -297,6 +297,8 @@ enum OperandType : unsigned {
+   OPERAND_CLUI_IMM,
+   OPERAND_VTYPEI10,
+   OPERAND_VTYPEI11,
++  // RISCVBaseInfo.h - riscv_operands - INSERTION_START
++  // RISCVBaseInfo.h - riscv_operands - INSERTION_END
+   OPERAND_RVKRNUM,
+   OPERAND_RVKRNUM_0_7,
+   OPERAND_RVKRNUM_1_10,
+diff --git a/llvm/lib/Target/RISCV/RISCV.td b/llvm/lib/Target/RISCV/RISCV.td
+index d96fafbe6..9f1271201 100644
+--- a/llvm/lib/Target/RISCV/RISCV.td
++++ b/llvm/lib/Target/RISCV/RISCV.td
+@@ -83,3 +83,9 @@ def RISCV : Target {
+   let AssemblyWriters = [RISCVAsmWriter];
+   let AllowRegisterRenaming = 1;
+ }
++
++// RISCV.td - riscv_td_includes - INSERTION_START
++
++include "seal5.td"
++
++// RISCV.td - riscv_td_includes - INSERTION_END
+diff --git a/llvm/lib/Target/RISCV/RISCVFeatures.td b/llvm/lib/Target/RISCV/RISCVFeatures.td
+index 3c868dbbf..853491125 100644
+--- a/llvm/lib/Target/RISCV/RISCVFeatures.td
++++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
+@@ -997,6 +997,11 @@ def HasStdExtSvinval : Predicate<"Subtarget->hasStdExtSvinval()">,
+                        AssemblerPredicate<(all_of FeatureStdExtSvinval),
+                            "'Svinval' (Fine-Grained Address-Translation Cache Invalidation)">;
+ 
++// RISCVFeatures.td - riscv_features - INSERTION_START
++def FeatureStdExtXS4EMAC : RISCVExtension<"xs4emac", 1, 0, "'XS4EMAC' (X_S4E_MAC Extension)">;
++def HasStdExtXS4EMAC : Predicate<"Subtarget->hasStdExtXS4EMAC()">, AssemblerPredicate<(any_of FeatureStdExtXS4EMAC), "'XS4EMAC' (X_S4E_MAC Extension)">;
++// RISCVFeatures.td - riscv_features - INSERTION_END
++
+ def FeatureStdExtSvnapot
+     : RISCVExtension<"svnapot", 1, 0,
+                      "'Svnapot' (NAPOT Translation Contiguity)">;
+diff --git a/llvm/lib/Target/RISCV/RISCVISelLowering.cpp b/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
+index badbb4259..bff1cb923 100644
+--- a/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
++++ b/llvm/lib/Target/RISCV/RISCVISelLowering.cpp
+@@ -657,6 +657,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
+   setOperationAction(ISD::ATOMIC_FENCE, MVT::Other, Custom);
+ 
+   setBooleanContents(ZeroOrOneBooleanContent);
++// RISCVISelLowering.cpp - legal_ops - INSERTION_START
++// RISCVISelLowering.cpp - legal_ops - INSERTION_END
+ 
+   if (getTargetMachine().getTargetTriple().isOSLinux()) {
+     // Custom lowering of llvm.clear_cache.
+diff --git a/llvm/lib/Target/RISCV/RISCVInstrInfo.td b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
+index 04054d2c3..baad0412c 100644
+--- a/llvm/lib/Target/RISCV/RISCVInstrInfo.td
++++ b/llvm/lib/Target/RISCV/RISCVInstrInfo.td
+@@ -315,6 +315,9 @@ def simm21_lsb0_jal : Operand<OtherVT> {
+   let OperandType = "OPERAND_PCREL";
+ }
+ 
++// RISCVInstrInfo.td - field_types - INSERTION_START
++// RISCVInstrInfo.td - field_types - INSERTION_END
++
+ def BareSymbol : AsmOperandClass {
+   let Name = "BareSymbol";
+   let RenderMethod = "addImmOperands";
+@@ -400,6 +403,8 @@ def uimm6gt32 : ImmLeaf<XLenVT, [{
+ def FrameAddrRegImm : ComplexPattern<iPTR, 2, "SelectFrameAddrRegImm",
+                                      [frameindex, or, add]>;
+ def AddrRegImm : ComplexPattern<iPTR, 2, "SelectAddrRegImm">;
++// RISCVInstrInfo.td - complex_patterns - INSERTION_START
++// RISCVInstrInfo.td - complex_patterns - INSERTION_END
+ 
+ // Return the negation of an immediate value.
+ def NegImm : SDNodeXForm<imm, [{
+@@ -2082,6 +2087,9 @@ include "RISCVInstrInfoSFB.td"
+ include "RISCVInstrInfoXCV.td"
+ include "RISCVInstrInfoXwch.td"
+ 
++// RISCVInstrInfo.td - riscv_instr_info_includes - INSERTION_START
++// RISCVInstrInfo.td - riscv_instr_info_includes - INSERTION_END
++
+ //===----------------------------------------------------------------------===//
+ // Global ISel
+ //===----------------------------------------------------------------------===//
+diff --git a/llvm/lib/Target/RISCV/RISCVRegisterInfo.td b/llvm/lib/Target/RISCV/RISCVRegisterInfo.td
+index b12634c24..48ce780fc 100644
+--- a/llvm/lib/Target/RISCV/RISCVRegisterInfo.td
++++ b/llvm/lib/Target/RISCV/RISCVRegisterInfo.td
+@@ -632,3 +632,7 @@ def SSP    : RISCVReg<0, "ssp">;
+ 
+ // Dummy VCIX state register
+ def VCIX_STATE : RISCVReg<0, "vcix_state">;
++
++// RISCVRegisterInfo.td - riscv_register_info - INSERTION_START
++def ACC : RISCVReg<0, "acc">;
++// RISCVRegisterInfo.td - riscv_register_info - INSERTION_END
+diff --git a/llvm/lib/Target/RISCV/seal5.td b/llvm/lib/Target/RISCV/seal5.td
+new file mode 100644
+index 000000000..7cbfd5f83
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5.td
+@@ -0,0 +1,7 @@
++
++// Includes
++// seal5.td - seal5_td_includes - INSERTION_START
++// s4e-mac
++include "seal5/X_S4E_MAC.td"
++// seal5.td - seal5_td_includes - INSERTION_END
++
+diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC.td
+new file mode 100644
+index 000000000..23d60fbbc
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC.td
+@@ -0,0 +1,12 @@
++
++// Includes
++// X_S4E_MAC.td - x_s4e_mac_set_td_includes - INSERTION_START
++include "seal5/X_S4E_MAC/RESET_ACCInstrInfo.td"
++include "seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td"
++include "seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td"
++include "seal5/X_S4E_MAC/MACU_32InstrInfo.td"
++include "seal5/X_S4E_MAC/MACS_32InstrInfo.td"
++include "seal5/X_S4E_MAC/MACU_64InstrInfo.td"
++include "seal5/X_S4E_MAC/MACS_64InstrInfo.td"
++// X_S4E_MAC.td - x_s4e_mac_set_td_includes - INSERTION_END
++
+diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td
+new file mode 100644
+index 000000000..707d67549
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td
+@@ -0,0 +1,40 @@
++let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
++class RVInst_GET_ACC_HI<dag outs, dag ins> : Instruction, Sched<[]> {
++    // General
++    let Namespace = "RISCV";
++    let Size = 4;
++    bits<32> SoftFail = 0;
++    bits<32> Inst;
++
++    // Operands
++    bits<5> rd;
++
++    // Attributes
++    let hasSideEffects = 0;
++    let mayLoad = 0;
++    let mayStore = 0;
++    let isTerminator = 0;
++    let Uses = [ACC];
++
++    // Encoding
++
++    let Inst{31-25} = 0b0000010;
++
++    let Inst{24-15} = 0b0000000000;
++
++    let Inst{14-12} = 0b000;
++
++    let Inst{11-7} = rd;
++
++    let Inst{6-0} = 0b0001011;
++
++    dag OutOperandList = outs;
++    dag InOperandList = ins;
++
++    // Assembly
++    let AsmString = "s4e.get_acc_hi\t$rd";
++
++}
++def GET_ACC_HI : RVInst_GET_ACC_HI<(outs GPR:$rd), (ins )>;
++
++}
+diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td
+new file mode 100644
+index 000000000..c6db62223
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td
+@@ -0,0 +1,40 @@
++let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
++class RVInst_GET_ACC_LO<dag outs, dag ins> : Instruction, Sched<[]> {
++    // General
++    let Namespace = "RISCV";
++    let Size = 4;
++    bits<32> SoftFail = 0;
++    bits<32> Inst;
++
++    // Operands
++    bits<5> rd;
++
++    // Attributes
++    let hasSideEffects = 0;
++    let mayLoad = 0;
++    let mayStore = 0;
++    let isTerminator = 0;
++    let Uses = [ACC];
++
++    // Encoding
++
++    let Inst{31-25} = 0b0000001;
++
++    let Inst{24-15} = 0b0000000000;
++
++    let Inst{14-12} = 0b000;
++
++    let Inst{11-7} = rd;
++
++    let Inst{6-0} = 0b0001011;
++
++    dag OutOperandList = outs;
++    dag InOperandList = ins;
++
++    // Assembly
++    let AsmString = "s4e.get_acc_lo\t$rd";
++
++}
++def GET_ACC_LO : RVInst_GET_ACC_LO<(outs GPR:$rd), (ins )>;
++
++}
+diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td
+new file mode 100644
+index 000000000..0608faa0d
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td
+@@ -0,0 +1,44 @@
++let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
++class RVInst_MACS_32<dag outs, dag ins> : Instruction, Sched<[]> {
++    // General
++    let Namespace = "RISCV";
++    let Size = 4;
++    bits<32> SoftFail = 0;
++    bits<32> Inst;
++
++    // Operands
++    bits<5> rs1;
++    bits<5> rs2;
++
++    // Attributes
++    let hasSideEffects = 0;
++    let mayLoad = 0;
++    let mayStore = 0;
++    let isTerminator = 0;
++    let Uses = [ACC];
++    let Defs = [ACC];
++
++    // Encoding
++
++    let Inst{31-25} = 0b0000001;
++
++    let Inst{24-20} = rs2;
++
++    let Inst{19-15} = rs1;
++
++    let Inst{14-12} = 0b001;
++
++    let Inst{11-7} = 0b00000;
++
++    let Inst{6-0} = 0b0001011;
++
++    dag OutOperandList = outs;
++    dag InOperandList = ins;
++
++    // Assembly
++    let AsmString = "s4e.macs_32\t$rs1, $rs2";
++
++}
++def MACS_32 : RVInst_MACS_32<(outs ), (ins GPR:$rs1, GPR:$rs2)>;
++
++}
+diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td
+new file mode 100644
+index 000000000..fb9880a82
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td
+@@ -0,0 +1,44 @@
++let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
++class RVInst_MACS_64<dag outs, dag ins> : Instruction, Sched<[]> {
++    // General
++    let Namespace = "RISCV";
++    let Size = 4;
++    bits<32> SoftFail = 0;
++    bits<32> Inst;
++
++    // Operands
++    bits<5> rs1;
++    bits<5> rs2;
++
++    // Attributes
++    let hasSideEffects = 0;
++    let mayLoad = 0;
++    let mayStore = 0;
++    let isTerminator = 0;
++    let Uses = [ACC];
++    let Defs = [ACC];
++
++    // Encoding
++
++    let Inst{31-25} = 0b0000001;
++
++    let Inst{24-20} = rs2;
++
++    let Inst{19-15} = rs1;
++
++    let Inst{14-12} = 0b010;
++
++    let Inst{11-7} = 0b00000;
++
++    let Inst{6-0} = 0b0001011;
++
++    dag OutOperandList = outs;
++    dag InOperandList = ins;
++
++    // Assembly
++    let AsmString = "s4e.macs_64\t$rs1, $rs2";
++
++}
++def MACS_64 : RVInst_MACS_64<(outs ), (ins GPR:$rs1, GPR:$rs2)>;
++
++}
+diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td
+new file mode 100644
+index 000000000..ee4bda025
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td
+@@ -0,0 +1,44 @@
++let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
++class RVInst_MACU_32<dag outs, dag ins> : Instruction, Sched<[]> {
++    // General
++    let Namespace = "RISCV";
++    let Size = 4;
++    bits<32> SoftFail = 0;
++    bits<32> Inst;
++
++    // Operands
++    bits<5> rs1;
++    bits<5> rs2;
++
++    // Attributes
++    let hasSideEffects = 0;
++    let mayLoad = 0;
++    let mayStore = 0;
++    let isTerminator = 0;
++    let Uses = [ACC];
++    let Defs = [ACC];
++
++    // Encoding
++
++    let Inst{31-25} = 0b0000000;
++
++    let Inst{24-20} = rs2;
++
++    let Inst{19-15} = rs1;
++
++    let Inst{14-12} = 0b001;
++
++    let Inst{11-7} = 0b00000;
++
++    let Inst{6-0} = 0b0001011;
++
++    dag OutOperandList = outs;
++    dag InOperandList = ins;
++
++    // Assembly
++    let AsmString = "s4e.macu_32\t$rs1, $rs2";
++
++}
++def MACU_32 : RVInst_MACU_32<(outs ), (ins GPR:$rs1, GPR:$rs2)>;
++
++}
+diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td
+new file mode 100644
+index 000000000..a4ea9aeb5
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td
+@@ -0,0 +1,44 @@
++let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
++class RVInst_MACU_64<dag outs, dag ins> : Instruction, Sched<[]> {
++    // General
++    let Namespace = "RISCV";
++    let Size = 4;
++    bits<32> SoftFail = 0;
++    bits<32> Inst;
++
++    // Operands
++    bits<5> rs1;
++    bits<5> rs2;
++
++    // Attributes
++    let hasSideEffects = 0;
++    let mayLoad = 0;
++    let mayStore = 0;
++    let isTerminator = 0;
++    let Uses = [ACC];
++    let Defs = [ACC];
++
++    // Encoding
++
++    let Inst{31-25} = 0b0000000;
++
++    let Inst{24-20} = rs2;
++
++    let Inst{19-15} = rs1;
++
++    let Inst{14-12} = 0b010;
++
++    let Inst{11-7} = 0b00000;
++
++    let Inst{6-0} = 0b0001011;
++
++    dag OutOperandList = outs;
++    dag InOperandList = ins;
++
++    // Assembly
++    let AsmString = "s4e.macu_64\t$rs1, $rs2";
++
++}
++def MACU_64 : RVInst_MACU_64<(outs ), (ins GPR:$rs1, GPR:$rs2)>;
++
++}
+diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td
+new file mode 100644
+index 000000000..4e324966f
+--- /dev/null
++++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td
+@@ -0,0 +1,39 @@
++let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
++class RVInst_RESET_ACC<dag outs, dag ins> : Instruction, Sched<[]> {
++    // General
++    let Namespace = "RISCV";
++    let Size = 4;
++    bits<32> SoftFail = 0;
++    bits<32> Inst;
++
++    // Operands
++
++    // Attributes
++    let hasSideEffects = 0;
++    let mayLoad = 0;
++    let mayStore = 0;
++    let isTerminator = 0;
++    let Defs = [ACC];
++
++    // Encoding
++
++    let Inst{31-25} = 0b0000000;
++
++    let Inst{24-15} = 0b0000000000;
++
++    let Inst{14-12} = 0b000;
++
++    let Inst{11-7} = 0b00000;
++
++    let Inst{6-0} = 0b0001011;
++
++    dag OutOperandList = outs;
++    dag InOperandList = ins;
++
++    // Assembly
++    let AsmString = "s4e.reset_acc\t";
++
++}
++def RESET_ACC : RVInst_RESET_ACC<(outs ), (ins )>;
++
++}
+diff --git a/llvm/tools/pattern-gen/CMakeLists.txt b/llvm/tools/pattern-gen/CMakeLists.txt
+new file mode 100644
+index 000000000..823362651
+--- /dev/null
++++ b/llvm/tools/pattern-gen/CMakeLists.txt
+@@ -0,0 +1,41 @@
++set(LLVM_LINK_COMPONENTS
++  AllTargetsAsmParsers
++  AllTargetsCodeGens
++  AllTargetsDescs
++  AllTargetsInfos
++  Analysis
++  AsmPrinter
++  CodeGen
++  CodeGenTypes
++  Core
++  IRReader
++  MC
++  MIRParser
++  Remarks
++  ScalarOpts
++  SelectionDAG
++  Support
++  Target
++  TargetParser
++  TransformUtils
++  Vectorize
++  Passes
++  )
++
++include_directories(../../lib/Target/RISCV)
++include_directories(${CMAKE_BINARY_DIR}/lib/Target/RISCV)
++
++add_llvm_tool(pattern-gen
++  Main.cpp
++  PatternGen.cpp
++  LLVMOverride.cpp
++  lib/InstrInfo.cpp
++  lib/Parser.cpp
++  lib/TokenStream.cpp
++  DEPENDS
++  intrinsics_gen
++  SUPPORT_PLUGINS
++  )
++
++export_executable_symbols_for_plugins(pattern-gen)
++
+diff --git a/llvm/tools/pattern-gen/LLVMOverride.cpp b/llvm/tools/pattern-gen/LLVMOverride.cpp
+new file mode 100644
+index 000000000..272590ef8
+--- /dev/null
++++ b/llvm/tools/pattern-gen/LLVMOverride.cpp
+@@ -0,0 +1,582 @@
++/*
++This file contains some code duplicated or slightly adjusted from LLVM,
++mostly overriding specific virtual functions to inject our own code.
++
++The alternative to using a file like this is modifying LLVM source
++more aggressively directly.
++*/
++#include "../lib/Target/RISCV/RISCVISelDAGToDAG.h"
++#include "../lib/Target/RISCV/RISCVTargetMachine.h"
++#include "PatternGen.hpp"
++#include "llvm/Analysis/CGSCCPassManager.h"
++#include "llvm/Analysis/LoopAnalysisManager.h"
++#include "llvm/Analysis/TargetLibraryInfo.h"
++#include "llvm/Analysis/TargetTransformInfo.h"
++#include "llvm/CodeGen/CommandFlags.h"
++#include "llvm/CodeGen/FunctionLoweringInfo.h"
++#include "llvm/CodeGen/GlobalISel/IRTranslator.h"
++#include "llvm/CodeGen/GlobalISel/InstructionSelect.h"
++#include "llvm/CodeGen/GlobalISel/Legalizer.h"
++#include "llvm/CodeGen/GlobalISel/PatternGen.h"
++#include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
++#include "llvm/CodeGen/ISDOpcodes.h"
++#include "llvm/CodeGen/LinkAllAsmWriterComponents.h"
++#include "llvm/CodeGen/LinkAllCodegenComponents.h"
++#include "llvm/CodeGen/MIRParser/MIRParser.h"
++#include "llvm/CodeGen/MachineFunctionPass.h"
++#include "llvm/CodeGen/MachineModuleInfo.h"
++#include "llvm/CodeGen/MachineScheduler.h"
++#include "llvm/CodeGen/RegAllocRegistry.h"
++#include "llvm/CodeGen/Register.h"
++#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/CodeGen/SelectionDAGISel.h"
++#include "llvm/CodeGen/SelectionDAGNodes.h"
++#include "llvm/CodeGen/TargetLowering.h"
++#include "llvm/CodeGen/TargetPassConfig.h"
++#include "llvm/CodeGen/TargetSubtargetInfo.h"
++#include "llvm/IR/Attributes.h"
++#include "llvm/IR/BasicBlock.h"
++#include "llvm/IR/Constants.h"
++#include "llvm/IR/DebugInfoMetadata.h"
++#include "llvm/IR/DebugLoc.h"
++#include "llvm/IR/DerivedTypes.h"
++#include "llvm/IR/DiagnosticInfo.h"
++#include "llvm/IR/DiagnosticPrinter.h"
++#include "llvm/IR/Function.h"
++#include "llvm/IR/IRBuilder.h"
++#include "llvm/IR/InstrTypes.h"
++#include "llvm/IR/Instruction.h"
++#include "llvm/IR/LegacyPassManager.h"
++#include "llvm/IR/Type.h"
++#include "llvm/IR/Verifier.h"
++#include "llvm/InitializePasses.h"
++#include "llvm/MC/TargetRegistry.h"
++#include "llvm/Pass.h"
++#include "llvm/Passes/PassBuilder.h"
++#include "llvm/Support/CodeGen.h"
++#include "llvm/Support/CommandLine.h"
++#include "llvm/Support/Debug.h"
++#include "llvm/Support/TargetSelect.h"
++#include "llvm/Support/Timer.h"
++#include "llvm/Support/ToolOutputFile.h"
++#include "llvm/Support/raw_ostream.h"
++#include "llvm/Target/TargetLoweringObjectFile.h"
++#include "llvm/Target/TargetMachine.h"
++#include "llvm/Transforms/IPO.h"
++#include "llvm/Transforms/Scalar.h"
++#include <cctype>
++#include <ostream>
++#define DEBUG_TYPE "isel"
++
++using namespace llvm;
++static codegen::RegisterCodeGenFlags CGF;
++
++static FunctionPass *useDefaultRegisterAllocator() { return nullptr; }
++
++static bool EnableRedundantCopyElimination = true;
++static auto EnableGlobalMerge = cl::BOU_UNSET;
++static bool EnableMachineCombiner = true;
++static bool EnableRISCVCopyPropagation = true;
++static bool EnableRISCVDeadRegisterElimination = true;
++static bool EnableSinkFold = true;
++static bool EnableLoopDataPrefetch = true;
++static bool EnableMISchedLoadClustering = false;
++static llvm::once_flag InitializeDefaultRVVRegisterAllocatorFlag;
++static auto RVVRegAlloc = useDefaultRegisterAllocator;
++static bool EnableVSETVLIAfterRVVRegAlloc = true;
++
++namespace {
++
++class RVVRegisterRegAlloc : public RegisterRegAllocBase<RVVRegisterRegAlloc> {
++public:
++  RVVRegisterRegAlloc(const char *N, const char *D, FunctionPassCtor C)
++      : RegisterRegAllocBase(N, D, C) {}
++};
++
++static bool onlyAllocateRVVReg(const TargetRegisterInfo &TRI,
++                               const MachineRegisterInfo &MRI,
++                               const Register Reg) {
++  const TargetRegisterClass *RC = MRI.getRegClass(Reg);
++  return RISCVRegisterInfo::isRVVRegClass(RC);
++}
++
++static void initializeDefaultRVVRegisterAllocatorOnce() {
++  RegisterRegAlloc::FunctionPassCtor Ctor = RVVRegisterRegAlloc::getDefault();
++
++  if (!Ctor) {
++    Ctor = RVVRegAlloc;
++    RVVRegisterRegAlloc::setDefault(RVVRegAlloc);
++  }
++}
++
++static FunctionPass *createGreedyRVVRegisterAllocator() {
++  return createGreedyRegisterAllocator(onlyAllocateRVVReg);
++}
++
++static FunctionPass *createFastRVVRegisterAllocator() {
++  return createFastRegisterAllocator(onlyAllocateRVVReg, false);
++}
++
++class RISCVPassConfig : public TargetPassConfig {
++public:
++  RISCVPassConfig(RISCVTargetMachine &TM, PassManagerBase &PM)
++      : TargetPassConfig(TM, PM) {
++    if (TM.getOptLevel() != CodeGenOptLevel::None)
++      substitutePass(&PostRASchedulerID, &PostMachineSchedulerID);
++    setEnableSinkAndFold(EnableSinkFold);
++  }
++
++  RISCVTargetMachine &getRISCVTargetMachine() const {
++    return getTM<RISCVTargetMachine>();
++  }
++
++  ScheduleDAGInstrs *
++  createMachineScheduler(MachineSchedContext *C) const override {
++    ScheduleDAGMILive *DAG = nullptr;
++    if (EnableMISchedLoadClustering) {
++      DAG = createGenericSchedLive(C);
++      DAG->addMutation(createLoadClusterDAGMutation(
++          DAG->TII, DAG->TRI, /*ReorderWhileClustering=*/true));
++    }
++    return DAG;
++  }
++
++  void addIRPasses() override;
++  bool addPreISel() override;
++  void addCodeGenPrepare() override;
++  bool addInstSelector() override;
++  bool addIRTranslator() override;
++  void addPreLegalizeMachineIR() override;
++  bool addLegalizeMachineIR() override;
++  void addPreRegBankSelect() override;
++  bool addRegBankSelect() override;
++  bool addGlobalInstructionSelect() override;
++  void addPreEmitPass() override;
++  void addPreEmitPass2() override;
++  void addPreSched2() override;
++  void addMachineSSAOptimization() override;
++  FunctionPass *createRVVRegAllocPass(bool Optimized);
++  bool addRegAssignAndRewriteFast() override;
++  bool addRegAssignAndRewriteOptimized() override;
++  void addPreRegAlloc() override;
++  void addPostRegAlloc() override;
++  void addFastRegAlloc() override;
++};
++} // namespace
++
++FunctionPass *RISCVPassConfig::createRVVRegAllocPass(bool Optimized) {
++  // Initialize the global default.
++  llvm::call_once(InitializeDefaultRVVRegisterAllocatorFlag,
++                  initializeDefaultRVVRegisterAllocatorOnce);
++
++  RegisterRegAlloc::FunctionPassCtor Ctor = RVVRegisterRegAlloc::getDefault();
++  if (Ctor != useDefaultRegisterAllocator)
++    return Ctor();
++
++  if (Optimized)
++    return createGreedyRVVRegisterAllocator();
++
++  return createFastRVVRegisterAllocator();
++}
++
++bool RISCVPassConfig::addRegAssignAndRewriteFast() {
++  addPass(createRVVRegAllocPass(false));
++  if (EnableVSETVLIAfterRVVRegAlloc)
++    addPass(createRISCVInsertVSETVLIPass());
++  if (TM->getOptLevel() != CodeGenOptLevel::None &&
++      EnableRISCVDeadRegisterElimination)
++    addPass(createRISCVDeadRegisterDefinitionsPass());
++  return TargetPassConfig::addRegAssignAndRewriteFast();
++}
++
++bool RISCVPassConfig::addRegAssignAndRewriteOptimized() {
++  addPass(createRVVRegAllocPass(true));
++  addPass(createVirtRegRewriter(false));
++  if (EnableVSETVLIAfterRVVRegAlloc)
++    addPass(createRISCVInsertVSETVLIPass());
++  if (TM->getOptLevel() != CodeGenOptLevel::None &&
++      EnableRISCVDeadRegisterElimination)
++    addPass(createRISCVDeadRegisterDefinitionsPass());
++  return TargetPassConfig::addRegAssignAndRewriteOptimized();
++}
++
++void RISCVPassConfig::addIRPasses() {
++  addPass(createAtomicExpandLegacyPass());
++
++  if (getOptLevel() != CodeGenOptLevel::None) {
++    if (EnableLoopDataPrefetch)
++      addPass(createLoopDataPrefetchPass());
++
++    addPass(createRISCVGatherScatterLoweringPass());
++    addPass(createInterleavedAccessPass());
++    addPass(createRISCVCodeGenPreparePass());
++  }
++
++  TargetPassConfig::addIRPasses();
++}
++
++bool RISCVPassConfig::addPreISel() {
++  if (TM->getOptLevel() != CodeGenOptLevel::None) {
++    // Add a barrier before instruction selection so that we will not get
++    // deleted block address after enabling default outlining. See D99707 for
++    // more details.
++    addPass(createBarrierNoopPass());
++  }
++
++  if (EnableGlobalMerge == cl::BOU_TRUE) {
++    addPass(createGlobalMergePass(TM, /* MaxOffset */ 2047,
++                                  /* OnlyOptimizeForSize */ false,
++                                  /* MergeExternalByDefault */ true));
++  }
++
++  return false;
++}
++
++void RISCVPassConfig::addCodeGenPrepare() {
++  if (getOptLevel() != CodeGenOptLevel::None)
++    addPass(createTypePromotionLegacyPass());
++  TargetPassConfig::addCodeGenPrepare();
++}
++
++bool RISCVPassConfig::addInstSelector() {
++  addPass(createRISCVISelDag(getRISCVTargetMachine(), getOptLevel()));
++
++  return false;
++}
++
++bool RISCVPassConfig::addIRTranslator() {
++  addPass(new IRTranslator(getOptLevel()));
++  return false;
++}
++
++void RISCVPassConfig::addPreLegalizeMachineIR() {
++  if (getOptLevel() == CodeGenOptLevel::None) {
++    addPass(createRISCVO0PreLegalizerCombiner());
++  } else {
++    addPass(createRISCVPreLegalizerCombiner());
++  }
++}
++
++bool RISCVPassConfig::addLegalizeMachineIR() {
++  addPass(new Legalizer());
++  return false;
++}
++
++void RISCVPassConfig::addPreRegBankSelect() {
++  if (getOptLevel() != CodeGenOptLevel::None)
++    addPass(createRISCVPostLegalizerCombiner());
++}
++
++bool RISCVPassConfig::addRegBankSelect() {
++  addPass(new RegBankSelect());
++  return false;
++}
++
++bool RISCVPassConfig::addGlobalInstructionSelect() {
++  addPass(new InstructionSelect(getOptLevel()));
++  return false;
++}
++
++void RISCVPassConfig::addPreSched2() {
++  addPass(createRISCVPostRAExpandPseudoPass());
++
++  // Emit KCFI checks for indirect calls.
++  addPass(createKCFIPass());
++}
++
++void RISCVPassConfig::addPreEmitPass() {
++  // TODO: It would potentially be better to schedule copy propagation after
++  // expanding pseudos (in addPreEmitPass2). However, performing copy
++  // propagation after the machine outliner (which runs after addPreEmitPass)
++  // currently leads to incorrect code-gen, where copies to registers within
++  // outlined functions are removed erroneously.
++  if (TM->getOptLevel() >= CodeGenOptLevel::Default &&
++      EnableRISCVCopyPropagation)
++    addPass(createMachineCopyPropagationPass(true));
++  addPass(&BranchRelaxationPassID);
++  addPass(createRISCVMakeCompressibleOptPass());
++}
++
++void RISCVPassConfig::addPreEmitPass2() {
++  if (TM->getOptLevel() != CodeGenOptLevel::None) {
++    addPass(createRISCVMoveMergePass());
++    // Schedule PushPop Optimization before expansion of Pseudo instruction,
++    // ensuring return instruction is detected correctly.
++    addPass(createRISCVPushPopOptimizationPass());
++  }
++  addPass(createRISCVExpandPseudoPass());
++
++  // Schedule the expansion of AMOs at the last possible moment, avoiding the
++  // possibility for other passes to break the requirements for forward
++  // progress in the LR/SC block.
++  addPass(createRISCVExpandAtomicPseudoPass());
++
++  // KCFI indirect call checks are lowered to a bundle.
++  addPass(createUnpackMachineBundles([&](const MachineFunction &MF) {
++    return MF.getFunction().getParent()->getModuleFlag("kcfi");
++  }));
++}
++
++void RISCVPassConfig::addMachineSSAOptimization() {
++  addPass(createRISCVVectorPeepholePass());
++
++  TargetPassConfig::addMachineSSAOptimization();
++
++  if (EnableMachineCombiner)
++    addPass(&MachineCombinerID);
++
++  if (TM->getTargetTriple().isRISCV64()) {
++    addPass(createRISCVOptWInstrsPass());
++  }
++}
++
++void RISCVPassConfig::addPreRegAlloc() {
++  addPass(createRISCVPreRAExpandPseudoPass());
++  if (TM->getOptLevel() != CodeGenOptLevel::None)
++    addPass(createRISCVMergeBaseOffsetOptPass());
++
++  addPass(createRISCVInsertReadWriteCSRPass());
++  addPass(createRISCVInsertWriteVXRMPass());
++
++  // Run RISCVInsertVSETVLI after PHI elimination. On O1 and above do it after
++  // register coalescing so needVSETVLIPHI doesn't need to look through COPYs.
++  if (!EnableVSETVLIAfterRVVRegAlloc) {
++    if (TM->getOptLevel() == CodeGenOptLevel::None)
++      insertPass(&PHIEliminationID, &RISCVInsertVSETVLIID);
++    else
++      insertPass(&RegisterCoalescerID, &RISCVInsertVSETVLIID);
++  }
++}
++
++void RISCVPassConfig::addFastRegAlloc() {
++  addPass(&InitUndefID);
++  TargetPassConfig::addFastRegAlloc();
++}
++
++void RISCVPassConfig::addPostRegAlloc() {
++  if (TM->getOptLevel() != CodeGenOptLevel::None &&
++      EnableRedundantCopyElimination)
++    addPass(createRISCVRedundantCopyEliminationPass());
++}
++
++class RISCVPatternPassConfig : public RISCVPassConfig {
++public:
++  RISCVPatternPassConfig(RISCVTargetMachine &TM, PassManagerBase &PM)
++      : RISCVPassConfig(TM, PM) {}
++
++  bool addGlobalInstructionSelect() override {
++    addPass(new PatternGen());
++    return this->RISCVPassConfig::addGlobalInstructionSelect();
++  }
++};
++
++class RISCVPatternsTargetMachine : public RISCVTargetMachine {
++public:
++  RISCVPatternsTargetMachine(const Target &T, const Triple &TT, StringRef CPU,
++                             StringRef FS, const TargetOptions &Options,
++                             std::optional<Reloc::Model> RM,
++                             std::optional<CodeModel::Model> CM,
++                             CodeGenOptLevel OL, bool JIT)
++      : RISCVTargetMachine(T, TT, CPU, FS, Options, RM, CM, OL, JIT) {}
++
++  TargetPassConfig *createPassConfig(PassManagerBase &PM) override {
++    return new RISCVPatternPassConfig(*this, PM);
++  }
++};
++
++void optimizeModule(llvm::TargetMachine *Machine, llvm::Module *Mod,
++                    llvm::CodeGenOptLevel OptLevel) {
++  Mod->setTargetTriple(Machine->getTargetTriple().str());
++  Mod->setDataLayout(Machine->createDataLayout());
++
++  // Create the analysis managers.
++  LoopAnalysisManager LAM;
++  FunctionAnalysisManager FAM;
++  CGSCCAnalysisManager CGAM;
++  ModuleAnalysisManager MAM;
++  PipelineTuningOptions PTO;
++  PTO.SLPVectorization = OptLevel > llvm::CodeGenOptLevel::None;
++
++  // Create the new pass manager builder.
++  // Take a look at the PassBuilder constructor parameters for more
++  // customization, e.g. specifying a TargetMachine or various debugging
++  // options.
++  PassBuilder PB(Machine, PTO);
++
++  // Register all the basic analyses with the managers.
++  PB.registerModuleAnalyses(MAM);
++  PB.registerCGSCCAnalyses(CGAM);
++  PB.registerFunctionAnalyses(FAM);
++  PB.registerLoopAnalyses(LAM);
++  PB.crossRegisterProxies(LAM, FAM, CGAM, MAM);
++
++  // Create the pass manager.
++  // This one corresponds to a typical -O2 optimization pipeline.
++  ModulePassManager MPM =
++      PB.buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
++
++  // Optimize the IR!
++  MPM.run(*Mod, MAM);
++}
++
++static void setOptions() {
++  const char *Args[] = {"", "--global-isel", "--global-isel-abort=1"};
++  cl::ParseCommandLineOptions(sizeof(Args) / sizeof(Args[0]), Args);
++}
++
++std::unique_ptr<TargetMachine> getTargetMachine(bool Is64Bit,
++                                                std::string Mattr) {
++  setOptions();
++  SMDiagnostic Err;
++  Triple TheTriple((Is64Bit ? "riscv64" : "riscv32"), "unknown", "linux",
++                   "gnu");
++
++  TargetOptions Options = codegen::InitTargetOptionsFromCodeGenFlags(TheTriple);
++  std::string CPUStr = codegen::getCPUStr(),
++              FeaturesStr = codegen::getFeaturesStr() + Mattr;
++
++  auto MAttrs = codegen::getMAttrs();
++
++  CodeGenOptLevel OLvl = CodeGenOptLevel::Aggressive;
++  Options.EnableGlobalISel = true;
++
++  std::optional<Reloc::Model> RM = codegen::getExplicitRelocModel();
++  std::optional<CodeModel::Model> CM = codegen::getExplicitCodeModel();
++
++  const Target *TheTarget = nullptr;
++  std::unique_ptr<TargetMachine> Target;
++
++  // Get the target specific parser.
++  std::string Error;
++  TheTarget =
++      TargetRegistry::lookupTarget(codegen::getMArch(), TheTriple, Error);
++  assert(TheTarget);
++
++  Target = std::make_unique<RISCVPatternsTargetMachine>(
++      *TheTarget, TheTriple, CPUStr, FeaturesStr, Options, RM, CM, OLvl, false);
++  // Target = std::unique_ptr<TargetMachine>(TheTarget->createTargetMachine(
++  //     TheTriple.getTriple(), CPUStr, FeaturesStr, Options, RM, CM, OLvl));
++  assert(Target && "Could not allocate target machine!");
++
++  return Target;
++}
++
++int runOptPipeline(llvm::Module *M, bool Is64Bit, std::string Mattr,
++                   llvm::CodeGenOptLevel OptLevel, std::ostream &IrOut) {
++
++  InitializeAllTargets();
++  InitializeAllTargetMCs();
++  InitializeAllAsmPrinters();
++  InitializeAllAsmParsers();
++
++  PassRegistry *Registry = PassRegistry::getPassRegistry();
++  initializeCore(*Registry);
++  initializeCodeGen(*Registry);
++  initializeLoopStrengthReducePass(*Registry);
++  initializeLowerIntrinsicsPass(*Registry);
++  initializePostInlineEntryExitInstrumenterPass(*Registry);
++  initializeUnreachableBlockElimLegacyPassPass(*Registry);
++  initializeConstantHoistingLegacyPassPass(*Registry);
++  initializeScalarOpts(*Registry);
++  initializeVectorization(*Registry);
++  initializeScalarizeMaskedMemIntrinLegacyPassPass(*Registry);
++  initializeExpandReductionsPass(*Registry);
++  initializeExpandVectorPredicationPass(*Registry);
++  initializeHardwareLoopsLegacyPass(*Registry);
++  initializeTransformUtils(*Registry);
++  initializeReplaceWithVeclibLegacyPass(*Registry);
++  initializeTLSVariableHoistLegacyPassPass(*Registry);
++
++  // Initialize debugging passes.
++  initializeScavengerTestPass(*Registry);
++
++  // Load the module to be compiled...
++  // SMDiagnostic Err;
++  auto Target = getTargetMachine(Is64Bit, Mattr);
++
++  M->setDataLayout(Target->createDataLayout().getStringRepresentation());
++
++  optimizeModule(Target.get(), M, OptLevel);
++  {
++    std::string ModuleStr;
++    {
++      llvm::raw_string_ostream StrStream(ModuleStr);
++      StrStream << *M;
++    }
++    IrOut << ModuleStr;
++  }
++  return 0;
++}
++
++int runPatternGenPipeline(llvm::Module *M, bool Is64Bit, std::string Mattr) {
++
++  auto Target = getTargetMachine(Is64Bit, Mattr);
++
++  if (codegen::getFloatABIForCalls() != FloatABI::Default)
++    Target->Options.FloatABIType = codegen::getFloatABIForCalls();
++
++  std::unique_ptr<MIRParser> MIR;
++
++  // Figure out where we are going to send the output.
++  // std::unique_ptr<ToolOutputFile> Out = GetOutputStream(TheTarget->getName(),
++  // TheTriple.getOS(), "pattern-gen"); if (!Out) return 1;
++
++  // Ensure the filename is passed down to CodeViewDebug.
++  // Target->Options.ObjectFilenameForDebug = Out->outputFilename();
++
++  // Add an appropriate TargetLibraryInfo pass for the module's triple.
++  TargetLibraryInfoImpl TLII(Triple(M->getTargetTriple()));
++
++  // Verify module immediately to catch problems before doInitialization() is
++  // called on any passes.
++  assert(!verifyModule(*M, &errs()));
++
++  // Override function attributes based on CPUStr, FeaturesStr, and command line
++  // flags.
++  codegen::setFunctionAttributes(Target->getTargetCPU(),
++                                 Target->getTargetFeatureString(), *M);
++
++  // if (EnableNewPassManager || !PassPipeline.empty()) {
++  //   return compileModuleWithNewPM(argv[0], std::move(M), std::move(MIR),
++  //                                 std::move(Target), std::move(Out),
++  //                                 std::move(DwoOut), Context, TLII, NoVerify,
++  //                                 PassPipeline, codegen::getFileType());
++  // }
++
++  // Build up all of the passes that we want to do to the module.
++  legacy::PassManager PM;
++  PM.add(new TargetLibraryInfoWrapperPass(TLII));
++
++  {
++    SmallVector<char> Out;
++    raw_svector_ostream SVOS{Out};
++    raw_pwrite_stream *OS = &SVOS;
++
++    LLVMTargetMachine &LLVMTM = static_cast<LLVMTargetMachine &>(*Target);
++    MachineModuleInfoWrapperPass *MMIWP =
++        new MachineModuleInfoWrapperPass(&LLVMTM);
++
++    // Construct a custom pass pipeline that starts after instruction
++    // selection.
++    if (Target->addPassesToEmitFile(PM, *OS, nullptr, codegen::getFileType(),
++                                    false, MMIWP)) {
++      assert(0 && "target does not support generation of this file type");
++    }
++
++    const_cast<TargetLoweringObjectFile *>(LLVMTM.getObjFileLowering())
++        ->Initialize(MMIWP->getMMI().getContext(), *Target);
++    if (MIR) {
++      assert(MMIWP && "Forgot to create MMIWP?");
++      if (MIR->parseMachineFunctions(*M, MMIWP->getMMI()))
++        return 1;
++    }
++
++    // Before executing passes, print the final values of the LLVM options.
++    cl::PrintOptionValues();
++
++    PM.run(*M);
++  }
++
++  return 0;
++}
++
+diff --git a/llvm/tools/pattern-gen/LLVMOverride.hpp b/llvm/tools/pattern-gen/LLVMOverride.hpp
+new file mode 100644
+index 000000000..93b74d159
+--- /dev/null
++++ b/llvm/tools/pattern-gen/LLVMOverride.hpp
+@@ -0,0 +1,7 @@
++#pragma once
++#include "llvm/IR/Module.h"
++#include "llvm/Support/CodeGen.h"
++
++int runOptPipeline(llvm::Module* M, bool Is64Bit, std::string Mattr, llvm::CodeGenOptLevel OptLevel, std::ostream &IrOut);
++int runPatternGenPipeline(llvm::Module* M, bool Is64Bit, std::string Mattr);
++
+diff --git a/llvm/tools/pattern-gen/Main.cpp b/llvm/tools/pattern-gen/Main.cpp
+new file mode 100644
+index 000000000..dd062cf37
+--- /dev/null
++++ b/llvm/tools/pattern-gen/Main.cpp
+@@ -0,0 +1,185 @@
++#include <cstdio>
++#include <ctype.h>
++#include <exception>
++#include <filesystem>
++#include <fstream>
++#include <map>
++#include <memory>
++#include <optional>
++#include <stdexcept>
++#include <string>
++#include <string_view>
++#include <tuple>
++
++#include "PatternGen.hpp"
++#include "lib/InstrInfo.hpp"
++#include "lib/Lexer.hpp"
++#include "lib/Parser.hpp"
++#include "lib/Token.hpp"
++#include "lib/TokenStream.hpp"
++#include "llvm/ADT/Statistic.h"
++#include "llvm/IR/LLVMContext.h"
++#include "llvm/IR/Module.h"
++#include "llvm/IR/Verifier.h"
++#include "llvm/Support/CodeGen.h"
++#include "llvm/Support/CommandLine.h"
++#include "llvm/Support/InitLLVM.h"
++
++using namespace llvm;
++
++static cl::OptionCategory ToolOptions("Tool Options");
++static cl::OptionCategory ViewOptions("View Options");
++
++static cl::list<std::string> InputFilenames(cl::Positional,
++                                            cl::desc("<input file>"),
++                                            cl::cat(ToolOptions));
++
++static cl::opt<std::string> OutputFilename("o", cl::desc("Output filename"),
++                                           cl::init("-"), cl::cat(ToolOptions),
++                                           cl::value_desc("filename"));
++
++static cl::opt<std::string>
++    InputLanguage("x", cl::desc("Input language ('cdsl' or 'll')"),
++                  cl::cat(ToolOptions));
++
++static cl::opt<bool> Force("f", cl::desc("Ignore parser errors."),
++                           cl::cat(ToolOptions));
++static cl::opt<bool> SkipFmt("skip-formats",
++                             cl::desc("Skip tablegen formats step."),
++                             cl::cat(ToolOptions));
++static cl::opt<bool> SkipPat("skip-patterns",
++                             cl::desc("Skip pattern-gen step."),
++                             cl::cat(ToolOptions));
++static cl::opt<bool> SkipVerify("skip-verify",
++                                cl::desc("Skip verification step."),
++                                cl::cat(ToolOptions));
++static cl::opt<bool> PrintIR("print-ir", cl::desc("Print LLVM-IR module."),
++                             cl::cat(ToolOptions));
++static cl::opt<bool> NoExtend(
++    "no-extend",
++    cl::desc("Do not apply CDSL typing rules (Use C-like type inference)."),
++    cl::cat(ToolOptions));
++
++static cl::opt<int> XLen("riscv-xlen", cl::desc("RISC-V XLEN (32 or 64 bit)"),
++                         cl::init(32), cl::cat(ToolOptions));
++
++// Determine optimization level.
++static cl::opt<char>
++    OptLevel("O",
++             cl::desc("Optimization level. [-O0, -O1, -O2, or -O3] "
++                      "(default = '-O3')"),
++             cl::cat(ToolOptions), cl::init('3'));
++
++static cl::opt<std::string> Predicates(
++    "p", cl::desc("Predicate(s) used for instructions in output TableGen"),
++    cl::cat(ToolOptions), cl::init("HasVendorXCValu"));
++
++namespace fs = std::filesystem;
++
++static auto getOutStreams(std::string SrcPath, std::string DestPath,
++                          bool EmitLL) {
++  fs::path OutPath{DestPath};
++
++  fs::path InPath{SrcPath};
++  fs::path BasePath = InPath.parent_path() / InPath.stem();
++
++  std::string NewExt = ".td";
++  if (OutPath.compare("-") != 0) {
++    BasePath = OutPath.parent_path() / OutPath.stem();
++    if (OutPath.has_extension())
++      NewExt = OutPath.extension().string();
++  }
++  // TODO: allow .td in out path
++  std::string IrPath = "/dev/null";
++  std::string FmtPath = "/dev/null";
++  std::string PatPath = "/dev/null";
++  if (EmitLL) {
++    IrPath = BasePath.string() + ".ll";
++  }
++  if (!SkipFmt) {
++    FmtPath = BasePath.string() + "InstrFormat" + NewExt;
++  }
++  if (!SkipPat) {
++    PatPath = BasePath.string() + NewExt;
++  }
++
++  return std::make_tuple(std::ofstream(IrPath), std::ofstream(FmtPath),
++                         std::ofstream(PatPath));
++}
++
++int main(int argc, char **argv) {
++  cl::HideUnrelatedOptions({&ToolOptions, &ViewOptions});
++  cl::ParseCommandLineOptions(argc, argv, "CoreDSL2LLVM Pattern Gen");
++  if (argc <= 1) {
++    fprintf(stderr, "usage: %s <SOURCE FILE> LLVM-ARGS...\n", argv[0]);
++    return -1;
++  }
++
++  for (auto &InputFilename : InputFilenames) {
++
++    std::string OutName = OutputFilename;
++    if (InputFilenames.size() > 1 || !fs::path{OutName}.has_filename())
++      OutName += fs::path{InputFilename}.stem();
++    auto [irOut, formatOut, patternOut] =
++        getOutStreams(InputFilename, OutName, true);
++
++    TokenStream Ts(InputFilename.c_str());
++    LLVMContext Ctx;
++    auto Mod = std::make_unique<Module>("mod", Ctx);
++    auto Instrs = ParseCoreDSL2(Ts, (XLen == 64), Mod.get(), NoExtend);
++
++    if (irOut) {
++      std::string Str;
++      raw_string_ostream OS(Str);
++      OS << *Mod;
++      OS.flush();
++      irOut << Str << "\n";
++      irOut.close();
++    }
++
++    if (!SkipVerify)
++      if (verifyModule(*Mod, &errs()))
++        return -1;
++
++    if (PrintIR)
++      llvm::outs() << *Mod << "\n";
++
++    // TODO: use force
++
++    llvm::CodeGenOptLevel Opt;
++    switch (OptLevel) {
++    case '0':
++      Opt = llvm::CodeGenOptLevel::None;
++      break;
++    case '1':
++      Opt = llvm::CodeGenOptLevel::Less;
++      break;
++    case '2':
++      Opt = llvm::CodeGenOptLevel::Default;
++      break;
++    case '3':
++      Opt = llvm::CodeGenOptLevel::Aggressive;
++      break;
++    }
++
++    PGArgsStruct Args{.Mattr = "",
++                      .OptLevel = Opt,
++                      .Predicates = Predicates,
++                      .Is64Bit = (XLen == 64)};
++
++    optimizeBehavior(Mod.get(), Instrs, irOut, Args);
++    if (PrintIR)
++      llvm::outs() << *Mod << "\n";
++    if (!SkipFmt)
++      PrintInstrsAsTableGen(Instrs, formatOut);
++
++    if (!SkipPat)
++      if (generatePatterns(Mod.get(), Instrs, patternOut, Args))
++        return -1;
++  }
++  // If statistics were requested, print them out now.
++  if (llvm::AreStatisticsEnabled())
++    llvm::PrintStatistics();
++  return 0;
++}
++
+diff --git a/llvm/tools/pattern-gen/PatternGen.cpp b/llvm/tools/pattern-gen/PatternGen.cpp
+new file mode 100644
+index 000000000..79e6c6acc
+--- /dev/null
++++ b/llvm/tools/pattern-gen/PatternGen.cpp
+@@ -0,0 +1,55 @@
++#include "PatternGen.hpp"
++#include "../lib/Target/RISCV/RISCVISelLowering.h"
++#include "LLVMOverride.hpp"
++#include "lib/InstrInfo.hpp"
++#include "llvm/CodeGen/GlobalISel/PatternGen.h"
++#include "llvm/CodeGen/ISDOpcodes.h"
++#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/CodeGen/SelectionDAGNodes.h"
++#include "llvm/IR/DebugLoc.h"
++#include "llvm/Support/Casting.h"
++#include "llvm/Support/CodeGen.h"
++#include "llvm/Support/Errc.h"
++#include "llvm/Support/FileSystem.h"
++#include "llvm/Support/raw_ostream.h"
++#include <array>
++#include <exception>
++#include <fstream>
++#include <initializer_list>
++#include <memory>
++#include <optional>
++#include <stdexcept>
++#include <string>
++#include <system_error>
++#include <type_traits>
++#include <unordered_map>
++#include <utility>
++
++int optimizeBehavior(llvm::Module *M, std::vector<CDSLInstr> const &Instrs,
++                     std::ostream &OstreamIR, PGArgsStruct Args) {
++  return runOptPipeline(M, Args.Is64Bit, Args.Mattr, Args.OptLevel, OstreamIR);
++}
++
++int generatePatterns(llvm::Module *M, std::vector<CDSLInstr> const &Instrs,
++                     std::ostream &Ostream, PGArgsStruct Args) {
++  // All other code in this file is called during code generation
++  // by the LLVM pipeline. We thus "pass" arguments as globals.
++  llvm::PatternGenArgs::OutStream = &Ostream;
++  llvm::PatternGenArgs::Args = Args;
++  llvm::PatternGenArgs::Instrs = &Instrs;
++
++  if (!Args.Predicates.empty())
++    Ostream << "let Predicates = [" << Args.Predicates << "] in {\n\n";
++
++  int Rv = runPatternGenPipeline(M, Args.Is64Bit, Args.Mattr);
++
++  if (!Args.Predicates.empty())
++    Ostream << "}\n";
++
++  llvm::PatternGenArgs::OutStream = nullptr;
++  llvm::PatternGenArgs::Args = PGArgsStruct();
++  llvm::PatternGenArgs::Instrs = nullptr;
++
++  return Rv;
++}
++
+diff --git a/llvm/tools/pattern-gen/PatternGen.hpp b/llvm/tools/pattern-gen/PatternGen.hpp
+new file mode 100644
+index 000000000..2353d00fd
+--- /dev/null
++++ b/llvm/tools/pattern-gen/PatternGen.hpp
+@@ -0,0 +1,18 @@
++#pragma once
++#include "lib/InstrInfo.hpp"
++#include "llvm/CodeGen/SelectionDAG.h"
++#include "llvm/Support/CodeGen.h"
++#include <llvm/IR/Module.h>
++
++struct PGArgsStruct
++{
++    std::string Mattr;
++    llvm::CodeGenOptLevel OptLevel;
++    std::string Predicates;
++    bool Is64Bit;
++};
++
++int optimizeBehavior(llvm::Module* M, std::vector<CDSLInstr> const& Instrs, std::ostream& OstreamIR, PGArgsStruct Args);
++int generatePatterns(llvm::Module* M, std::vector<CDSLInstr> const& Instrs, std::ostream& Ostream, PGArgsStruct Args);
++//void PrintPattern(llvm::SelectionDAG& DAG);
++
+diff --git a/llvm/tools/pattern-gen/lib/InstrInfo.cpp b/llvm/tools/pattern-gen/lib/InstrInfo.cpp
+new file mode 100644
+index 000000000..343dcbba9
+--- /dev/null
++++ b/llvm/tools/pattern-gen/lib/InstrInfo.cpp
+@@ -0,0 +1,43 @@
++#include "InstrInfo.hpp"
++#include <sstream>
++#include <algorithm>
++
++std::string EncodingToTablgen(CDSLInstr const& instr)
++{
++    std::stringstream s;
++
++    uint8_t size = instr.size;
++    std::string base = (size == 48 ? "RVInst48" : (size == 16 ? "RVInst16" : "RVInst"));
++
++    s << "class RVInst_" << instr.name << "<dag outs, dag ins>"
++      << " : " << base << "<outs, ins, \"" << instr.mnemonic << "\", \"" << instr.argString << "\", [], InstFormatOther> {\n";
++
++    for (auto const& f : instr.fields)
++        if (f.type & (CDSLInstr::FieldType::NON_CONST))
++        {
++            int len = f.len;
++            s << "\tbits<" << len << "> " << f.ident << ";\n";
++        }
++
++    for (auto const& f : instr.frags)
++    {
++        s << "\tlet Inst{" << std::to_string(f.dstOffset + f.len - 1) << "-" << std::to_string(f.dstOffset) << "} = ";
++        auto const& field = instr.fields[f.idx];
++
++        if (field.type == CDSLInstr::FieldType::CONST)
++            s << "0x" << std::hex << ((field.constV >> f.srcOffset) & ((1UL << f.len) - 1)) << std::dec;
++        else
++            s << field.ident << "{" << std::to_string(f.srcOffset + f.len - 1) << "-"
++              << std::to_string(f.srcOffset) << "}";
++        s << ";\n";
++    }
++    s << "}";
++    return s.str();
++}
++
++void PrintInstrsAsTableGen (std::vector<CDSLInstr> const& instrs, std::ostream& ostream)
++{
++    for (auto const& instr : instrs)
++        ostream << EncodingToTablgen(instr) << '\n';
++}
++
+diff --git a/llvm/tools/pattern-gen/lib/InstrInfo.hpp b/llvm/tools/pattern-gen/lib/InstrInfo.hpp
+new file mode 100644
+index 000000000..13a1576a1
+--- /dev/null
++++ b/llvm/tools/pattern-gen/lib/InstrInfo.hpp
+@@ -0,0 +1,54 @@
++#pragma once
++#include "llvm/ADT/SmallVector.h"
++#include <cstdint>
++#include <string>
++#include <string_view>
++#include <vector>
++#include <array>
++#include <cassert>
++
++struct CDSLInstr
++{
++    struct FieldFrag
++    {
++        uint8_t idx; // index into Field array
++        uint8_t len;
++        uint8_t dstOffset;
++        uint8_t srcOffset;
++        uint64_t val;
++    };
++
++    enum FieldType
++    {
++        CONST = 0,
++        NON_CONST = 1,
++        SIGNED = 2,
++        SIGNED_REG = 4,
++        IMM = 8,
++        REG = 16,
++        IN = 32,
++        OUT = 64,
++        IS_32_BIT = 128,
++    };
++
++    struct Field
++    {
++        uint8_t len;
++        uint64_t constV;
++        std::string_view ident;
++        uint32_t identIdx;
++        FieldType type;
++    };
++
++    uint8_t size;
++    std::string name;
++    std::string mnemonic;
++    std::string argString;
++
++    llvm::SmallVector<Field, 4> fields;
++    llvm::SmallVector<FieldFrag, 8> frags;
++};
++
++std::string EncodingToTablgen(CDSLInstr const& instr);
++void PrintInstrsAsTableGen (std::vector<CDSLInstr> const& instrs, std::ostream& ostream);
++
+diff --git a/llvm/tools/pattern-gen/lib/Lexer.hpp b/llvm/tools/pattern-gen/lib/Lexer.hpp
+new file mode 100644
+index 000000000..a566c6d62
+--- /dev/null
++++ b/llvm/tools/pattern-gen/lib/Lexer.hpp
+@@ -0,0 +1,144 @@
++#pragma once
++#include <cstddef>
++#include "Token.hpp"
++
++inline size_t LexOperator (const char* code, size_t i, TokenType* token)
++{
++switch (code[i + 0])
++{
++    case '!':
++        if (code[i + 1] == '=')
++        {
++            *token = NotEquals;
++            return i + 2;
++        }
++        *token = LogicalNOT;
++        return i + 1;
++    case '%':
++        if (code[i + 1] == '=')
++        {
++            *token = AssignmentMod;
++            return i + 2;
++        }
++        *token = Modulo;
++        return i + 1;
++    case '&':
++        switch (code[i + 1])
++        {
++            case '&': *token = LogicalAND; return i + 2;
++            case '=': *token = AssignmentAND; return i + 2;
++        }
++        *token = BitwiseAND;
++        return i + 1;
++    case '(': *token = RBrOpen; return i + 1;
++    case ')': *token = RBrClose; return i + 1;
++    case '*':
++        if (code[i + 1] == '=')
++        {
++            *token = AssignmentMul;
++            return i + 2;
++        }
++        *token = Multiply;
++        return i + 1;
++    case '+':
++        switch (code[i + 1])
++        {
++            case '+': *token = Increment; return i + 2;
++            case '=': *token = AssignmentAdd; return i + 2;
++            case ':': *token = PlusColon; return i + 2;
++        }
++        *token = Plus;
++        return i + 1;
++    case ',': *token = Comma; return i + 1;
++    case '-':
++        switch (code[i + 1])
++        {
++            case '-': *token = Decrement; return i + 2;
++            case '=': *token = AssignmentSub; return i + 2;
++            //case '>': *token = Arrow; return i + 2;
++            case ':': *token = MinusColon; return i + 2;
++        }
++        *token = Minus;
++        return i + 1;
++    //case '.': *token = Dot; return i + 1;
++    case '/':
++        if (code[i + 1] == '=')
++        {
++            *token = AssignmentDiv;
++            return i + 2;
++        }
++        *token = Divide;
++        return i + 1;
++    case ':':
++        if (code[i + 1] == ':')
++        {
++            *token = BitwiseConcat;
++            return i + 2;
++        }
++        *token = Colon;
++        return i + 1;
++    case ';': *token = Semicolon; return i + 1;
++    case '<':
++        switch (code[i + 1])
++        {
++            case '<':
++                if (code[i + 2] == '=')
++                {
++                    *token = AssignmentShiftLeft;
++                    return i + 3;
++                }
++                *token = ShiftLeft;
++                return i + 2;
++            case '=': *token = LessThanEq; return i + 2;
++        }
++        *token = LessThan;
++        return i + 1;
++    case '=':
++        if (code[i + 1] == '=')
++        {
++            *token = Equals;
++            return i + 2;
++        }
++        *token = Assignment;
++        return i + 1;
++    case '>':
++        switch (code[i + 1])
++        {
++            case '=': *token = GreaterThanEq; return i + 2;
++            case '>':
++                if (code[i + 2] == '=')
++                {
++                    *token = AssignmentShiftRight;
++                    return i + 3;
++                }
++                *token = ShiftRight;
++                return i + 2;
++        }
++        *token = GreaterThan;
++        return i + 1;
++    case '?': *token = Ternary; return i + 1;
++    case '[': *token = ABrOpen; return i + 1;
++    case ']': *token = ABrClose; return i + 1;
++    case '^':
++        if (code[i + 1] == '=')
++        {
++            *token = AssignmentXOR;
++            return i + 2;
++        }
++        *token = BitwiseXOR;
++        return i + 1;
++    case '{': *token = CBrOpen; return i + 1;
++    case '|':
++        switch (code[i + 1])
++        {
++            case '=': *token = AssignmentOR; return i + 2;
++            case '|': *token = LogicalOR; return i + 2;
++        }
++        *token = BitwiseOR;
++        return i + 1;
++    case '}': *token = CBrClose; return i + 1;
++    case '~': *token = BitwiseNOT; return i + 1;
++}
++return 0;
++}
++
+diff --git a/llvm/tools/pattern-gen/lib/Parser.cpp b/llvm/tools/pattern-gen/lib/Parser.cpp
+new file mode 100644
+index 000000000..8632bed22
+--- /dev/null
++++ b/llvm/tools/pattern-gen/lib/Parser.cpp
+@@ -0,0 +1,1549 @@
++#include "Parser.hpp"
++#include "InstrInfo.hpp"
++#include "Token.hpp"
++#include "TokenStream.hpp"
++#include "llvm/ADT/STLExtras.h"
++#include "llvm/ADT/SmallVector.h"
++#include "llvm/ADT/Statistic.h"
++#include "llvm/ADT/StringRef.h"
++#include "llvm/IR/Attributes.h"
++#include "llvm/IR/BasicBlock.h"
++#include "llvm/IR/Constant.h"
++#include "llvm/IR/ConstantRange.h"
++#include "llvm/IR/Constants.h"
++#include "llvm/IR/DerivedTypes.h"
++#include "llvm/IR/Function.h"
++#include "llvm/IR/IRBuilder.h"
++#include "llvm/IR/InstrTypes.h"
++#include "llvm/IR/Instruction.h"
++#include "llvm/IR/Instructions.h"
++#include "llvm/IR/Intrinsics.h"
++#include "llvm/IR/Type.h"
++#include "llvm/Support/Alignment.h"
++#include "llvm/Support/AllocatorBase.h"
++#include "llvm/Support/TypeSize.h"
++#include <array>
++#include <cstdlib>
++#include <functional>
++#include <limits>
++#include <regex>
++#include <sstream>
++#include <string>
++#include <string_view>
++#include <unordered_map>
++
++#define DEBUG_TYPE "pattern-gen"
++
++STATISTIC(PatternGenNumSetsParsed, "Parsed instruction sets");
++STATISTIC(PatternGenNumInstructionsParsed, "Parsed instructions");
++
++using namespace std::placeholders;
++
++struct Value {
++  llvm::Value *ll;
++  int bitWidth;
++  bool isSigned;
++  bool isLValue;
++
++  Value(llvm::Value *llvalue, bool isSigned = false)
++      : ll(llvalue), isSigned(isSigned) {
++    assert(!llvm::isa<llvm::PointerType>(llvalue->getType()));
++    bitWidth = llvalue->getType()->getIntegerBitWidth();
++    isLValue = false;
++  }
++
++  Value(llvm::Value *llvalue, int bitWidth, bool isSigned = false)
++      : ll(llvalue), bitWidth(bitWidth), isSigned(isSigned) {
++    isLValue = true;
++  }
++
++  Value() {}
++};
++struct Variable {
++  Value val;
++  int scope;
++};
++static llvm::DenseMap<uint32_t, llvm::SmallVector<Variable>> variables;
++static int scopeDepth;
++static llvm::BasicBlock *entry;
++static CDSLInstr *curInstr;
++
++static int xlen;
++static bool NoExtend_;
++static llvm::Type *regT;
++
++static void reset_globals() {
++  variables.clear();
++  scopeDepth = 0;
++  entry = nullptr;
++  curInstr = nullptr;
++}
++
++static void create_var_scope() { scopeDepth++; }
++
++static void pop_var_scope() {
++  for (auto it = variables.begin(); it != variables.end();) {
++    auto &[vname, vstack] = *it++;
++    assert(!vstack.empty());
++    if (vstack.back().scope == scopeDepth)
++      vstack.pop_back();
++    if (vstack.empty())
++      variables.erase(vname);
++  }
++  scopeDepth--;
++}
++
++void ParseScope(TokenStream &ts, llvm::Function *func,
++                llvm::IRBuilder<> &build);
++Value ParseExpression(TokenStream &ts, llvm::Function *func,
++                      llvm::IRBuilder<> &build, int minPrec = 0);
++
++static void __attribute__((noreturn)) error(const char *msg, TokenStream &ts) {
++  fprintf(stderr, "%s:%i: %s\n", ts.path.c_str(), ts.lineNumber, msg);
++  exit(-1);
++}
++
++static void warning(const char *msg, TokenStream &ts) {
++  fprintf(stderr, "%s:%i: warning: %s\n", ts.path.c_str(), ts.lineNumber, msg);
++}
++
++static void __attribute__((noreturn)) syntax_error(TokenStream &ts) {
++  error("syntax error", ts);
++}
++
++static void implicit_truncation(TokenStream &ts) {
++  warning("implicit truncation", ts);
++}
++
++static void __attribute__((noreturn)) not_implemented(TokenStream &ts) {
++  error("not implemented", ts);
++}
++
++static void add_variable(TokenStream ts, int identIdx, Value v) {
++  if (!variables[identIdx].empty() &&
++      variables[identIdx].back().scope == scopeDepth)
++    error(("redefinition: " + std::string(ts.GetIdent(identIdx))).c_str(), ts);
++
++  variables[identIdx].push_back(Variable{v, scopeDepth});
++}
++
++static Token pop_cur(TokenStream &ts, TokenType expected) {
++  Token t = ts.Pop();
++  if (t.type != expected)
++    syntax_error(ts);
++  return t;
++}
++
++static bool pop_cur_if(TokenStream &ts, TokenType expected) {
++  Token t = ts.Peek();
++  if (t.type == expected) {
++    ts.Pop();
++    return true;
++  }
++  return false;
++}
++
++static bool peek_is_type(TokenStream &ts) {
++  auto peekT = ts.Peek().type;
++  return peekT == UnsignedKeyword || peekT == SignedKeyword;
++}
++
++// ceil to pow2 greater equal 8
++static int ceil_to_pow2(int n) {
++  int bitWidth8 = (((n + 7) / 8) * 8);
++  int bitWidth2 = 1 << (31 - __builtin_clz(bitWidth8));
++  if (bitWidth8 != bitWidth2)
++    bitWidth2 *= 2;
++  return bitWidth2;
++}
++
++void promote_lvalue(llvm::IRBuilder<> &build, Value &v) {
++  if (!v.isLValue)
++    return;
++
++  v.ll = build.CreateAlignedLoad(
++      llvm::Type::getIntNTy(build.getContext(), v.bitWidth), v.ll,
++      llvm::Align(ceil_to_pow2(v.bitWidth) / 8), v.ll->getName() + ".v");
++  v.isLValue = false;
++}
++
++static void fit_to_size(Value &v, llvm::IRBuilder<> &build) {
++  bool sExt = v.isSigned;
++  auto &ctx = build.getContext();
++
++  llvm::Type *newType = llvm::Type::getIntNTy(ctx, v.bitWidth);
++
++  if (newType->getIntegerBitWidth() >
++      (v.isLValue ? v.bitWidth : v.ll->getType()->getIntegerBitWidth()))
++    v.ll = sExt ? build.CreateSExt(v.ll, newType)
++                : build.CreateZExt(v.ll, newType);
++  else if (newType->getIntegerBitWidth() <
++           (v.isLValue ? v.bitWidth : v.ll->getType()->getIntegerBitWidth()))
++    v.ll = build.CreateTrunc(v.ll, newType);
++}
++
++Value gen_subscript(TokenStream &ts, llvm::Function *func,
++                    llvm::IRBuilder<> &build, TokenType op, Value left,
++                    Value right) {
++  auto &ctx = func->getContext();
++  Value upper = ParseExpression(ts, func, build);
++
++  int len = 0;
++  Value lower;
++
++  if (pop_cur_if(ts, Colon)) {
++    lower = ParseExpression(ts, func, build);
++    if (!llvm::isa<llvm::ConstantInt>(lower.ll) ||
++        !llvm::isa<llvm::ConstantInt>(upper.ll))
++      not_implemented(ts);
++    len = llvm::cast<llvm::ConstantInt>(upper.ll)->getLimitedValue() -
++          llvm::cast<llvm::ConstantInt>(lower.ll)->getLimitedValue() + 1;
++  } else if (pop_cur_if(ts, PlusColon)) {
++    len = pop_cur(ts, IntLiteral).literal.value;
++    lower = upper;
++    upper = build.CreateAdd(upper.ll,
++                            llvm::ConstantInt::get(upper.ll->getType(), len));
++  } else if (pop_cur_if(ts, MinusColon)) {
++    len = pop_cur(ts, IntLiteral).literal.value;
++    lower = build.CreateAdd(upper.ll,
++                            llvm::ConstantInt::get(upper.ll->getType(), len));
++  } else {
++    lower = upper;
++    len = 1;
++  }
++  pop_cur(ts, ABrClose);
++
++  for (auto &v : {&lower, &upper}) {
++    promote_lvalue(build, *v);
++    if (v->bitWidth != xlen) {
++      v->isSigned = false;
++      v->bitWidth = xlen;
++      fit_to_size(lower, build);
++    }
++  }
++
++  if (auto asConst = llvm::dyn_cast<llvm::ConstantInt>(lower.ll))
++    if (asConst->getLimitedValue() % len != 0)
++      promote_lvalue(build, left);
++
++  if (left.isLValue && (len == 8 || len == 16 || len == 32 || len == xlen) &&
++      left.bitWidth == xlen) {
++    auto offset = build.CreateUDiv(
++        lower.ll, llvm::ConstantInt::get(lower.ll->getType(), len));
++    offset = build.CreateAnd(
++        offset, llvm::ConstantInt::get(lower.ll->getType(), (xlen / 8) - 1));
++
++    auto llptr =
++        build.CreateGEP(llvm::Type::getIntNTy(ctx, len), left.ll, {offset});
++
++    left.ll = llptr;
++    left.bitWidth = len;
++    left.isLValue = true;
++  } else if (left.bitWidth == xlen &&
++             (!llvm::isa<llvm::ConstantInt>(lower.ll) ||
++              (llvm::cast<llvm::ConstantInt>(lower.ll)->getLimitedValue() %
++               len) == 0) &&
++             (len == 8 || len == 16 || (len == 32 && xlen != 32))) {
++    promote_lvalue(build, left);
++
++    auto ec = llvm::ElementCount::getFixed(xlen / len);
++    left.ll = build.CreateBitCast(
++        left.ll, llvm::VectorType::get(llvm::Type::getIntNTy(ctx, len), ec));
++
++    auto *idx = build.CreateUDiv(lower.ll, llvm::ConstantInt::get(regT, len));
++
++    left.ll = build.CreateExtractElement(left.ll, idx);
++    left.bitWidth = len;
++    fit_to_size(left, build);
++  } else {
++    promote_lvalue(build, left);
++
++    lower.bitWidth = left.bitWidth;
++    fit_to_size(lower, build);
++    upper.bitWidth = left.bitWidth;
++    fit_to_size(upper, build);
++
++    left.ll = build.CreateLShr(left.ll, lower.ll);
++    int llLen = upper.ll->getType()->getIntegerBitWidth();
++    llvm::Value *mask =
++        (len == llLen)
++            ? llvm::ConstantInt::get(upper.ll->getType(), 0)
++            : build.CreateShl(
++                              llvm::ConstantInt::get(llvm::Type::getIntNTy(ctx, len + 1), 1),
++                              len);
++    mask = build.CreateSub(mask, llvm::ConstantInt::get(mask->getType(), 1));
++    mask = (len < left.ll->getType()->getIntegerBitWidth()) ? build.CreateZExt(mask, left.ll->getType()) : ((build.CreateTrunc(mask, left.ll->getType())) ? : mask);
++
++    left.ll = build.CreateAnd(left.ll, mask);
++
++    left.bitWidth = len;
++    fit_to_size(left, build);
++  }
++  return left;
++}
++
++void check_lvalue(Value &v, TokenStream &ts, llvm::BasicBlock *bb) {
++  if (!v.isLValue)
++    error("cannot assign rvalue", ts);
++
++  llvm::Value *ll = v.ll;
++  // For register arguments, add "no alias" if assigned for vectorization to
++  // work.
++  while (1) {
++    if (auto *arg = llvm::dyn_cast<llvm::Argument>(ll)) {
++      arg->addAttr(llvm::Attribute::NoAlias);
++      break;
++    }
++    // Peek through GEPs
++    if (auto *gep = llvm::dyn_cast<llvm::GetElementPtrInst>(ll))
++      ll = gep->getPointerOperand();
++    else
++      break;
++  }
++}
++
++Value gen_assign(TokenStream &ts, llvm::Function *func,
++                 llvm::IRBuilder<> &build, TokenType op, Value left,
++                 Value right) {
++  auto &ctx = func->getContext();
++
++  check_lvalue(left, ts, build.GetInsertBlock());
++
++  if (left.bitWidth < right.bitWidth && op == Assignment)
++    implicit_truncation(ts);
++
++  Value rightOriginal = right;
++
++  promote_lvalue(build, right);
++  right.bitWidth = left.bitWidth;
++  fit_to_size(right, build);
++
++  build.CreateAlignedStore(right.ll, left.ll,
++                           llvm::Align(ceil_to_pow2(right.bitWidth) / 8));
++
++  return rightOriginal;
++}
++
++Value gen_compare(TokenStream &ts, llvm::Function *func,
++                  llvm::IRBuilder<> &build, TokenType op, Value left,
++                  Value right) {
++  using Op = llvm::CmpInst::Predicate;
++
++  promote_lvalue(build, left);
++  promote_lvalue(build, right);
++
++  static const Op conv[] = {
++      [ABrOpen] = Op::BAD_ICMP_PREDICATE,
++      [Plus] = Op::BAD_ICMP_PREDICATE,
++      [Minus] = Op::BAD_ICMP_PREDICATE,
++      [Multiply] = Op::BAD_ICMP_PREDICATE,
++      [Divide] = Op::BAD_ICMP_PREDICATE,
++      [Modulo] = Op::BAD_ICMP_PREDICATE,
++      [ShiftLeft] = Op::BAD_ICMP_PREDICATE,
++      [ShiftRight] = Op::BAD_ICMP_PREDICATE,
++      [LessThan] = Op::ICMP_SLT,
++      [GreaterThan] = Op::ICMP_SGT,
++      [LessThanEq] = Op::ICMP_SLE,
++      [GreaterThanEq] = Op::ICMP_SGE,
++      [Equals] = Op::ICMP_EQ,
++      [NotEquals] = Op::ICMP_NE,
++  };
++  Op llop = conv[op];
++
++  // CoreDSL2 does not specify explicitly under what circumstances ordering
++  // comparisons are signed or unsigned. Assume usual C behavior.
++  // "[Comparison operators] do not take the operand types into account"
++  // -> doesn't make sense
++  bool signedCmp = left.isSigned || right.isSigned;
++  if (!signedCmp)
++    switch (llop) {
++    case Op::ICMP_SGE:
++      llop = Op::ICMP_UGE;
++      break;
++    case Op::ICMP_SLE:
++      llop = Op::ICMP_ULE;
++      break;
++    case Op::ICMP_SGT:
++      llop = Op::ICMP_UGT;
++      break;
++    case Op::ICMP_SLT:
++      llop = Op::ICMP_ULT;
++      break;
++    default:
++      break;
++    }
++
++  int compareWidth = std::max(left.bitWidth, right.bitWidth);
++  left.bitWidth = compareWidth;
++  fit_to_size(left, build);
++  right.bitWidth = compareWidth;
++  fit_to_size(right, build);
++
++  Value result;
++  result.isLValue = false;
++  result.isSigned = false;
++  result.bitWidth = 1;
++  result.ll = build.CreateICmp(llop, left.ll, right.ll);
++  return result;
++}
++
++Value gen_binop(TokenStream &ts, llvm::Function *func, llvm::IRBuilder<> &build,
++                TokenType op, Value left, Value right) {
++  using Op = llvm::BinaryOperator;
++  auto &ctx = func->getContext();
++
++  Value leftOriginal = left;
++  promote_lvalue(build, left);
++  promote_lvalue(build, right);
++
++  static const Op::BinaryOps conv[] = {
++      [ABrOpen] = Op::BinaryOps::BinaryOpsEnd,
++      [Plus] = Op::Add,
++      [Minus] = Op::Sub,
++      [Multiply] = Op::Mul,
++      [Divide] = Op::SDiv,
++      [Modulo] = Op::SRem,
++      [ShiftLeft] = Op::Shl,
++      [ShiftRight] = Op::AShr,
++      [LessThan] = Op::BinaryOpsEnd,
++      [GreaterThan] = Op::BinaryOpsEnd,
++      [LessThanEq] = Op::BinaryOpsEnd,
++      [GreaterThanEq] = Op::BinaryOpsEnd,
++      [Equals] = Op::BinaryOpsEnd,
++      [NotEquals] = Op::BinaryOpsEnd,
++      [BitwiseAND] = Op::And,
++      [BitwiseOR] = Op::Or,
++      [BitwiseXOR] = Op::Xor,
++      [LogicalAND] = Op::BinaryOpsEnd,
++      [LogicalOR] = Op::BinaryOpsEnd,
++      [Ternary] = Op::BinaryOpsEnd,
++      [BitwiseConcat] = Op::BinaryOpsEnd,
++      [Assignment] = Op::BinaryOpsEnd,
++      [AssignmentAdd] = Op::Add,
++      [AssignmentSub] = Op::Sub,
++      [AssignmentMul] = Op::Mul,
++      [AssignmentDiv] = Op::SDiv,
++      [AssignmentMod] = Op::SRem,
++      [AssignmentAND] = Op::And,
++      [AssignmentOR] = Op::Or,
++      [AssignmentXOR] = Op::Xor,
++      [AssignmentShiftRight] = Op::Shl,
++      [AssignmentShiftLeft] = Op::AShr,
++  };
++  assert(op >= Plus && op <= AssignmentShiftLeft);
++  llvm::BinaryOperator::BinaryOps llop = conv[op];
++
++  bool outSigned;
++  switch (llop) {
++  case Op::Shl:
++  case Op::AShr:
++  case Op::SRem:
++    outSigned = left.isSigned;
++    break;
++  case Op::Sub:
++    outSigned = true;
++    break;
++  default:
++    outSigned = left.isSigned || right.isSigned;
++    break;
++  }
++
++  int w1 = left.bitWidth;
++  int w2 = right.bitWidth;
++  int signedPair = (left.isSigned << 1) | right.isSigned;
++
++  int resultWidth;
++  switch (llop) {
++  case Op::Add:
++    switch (signedPair) {
++    case 0b00:
++      resultWidth = std::max(w1, w2) + 1;
++      break;
++    case 0b11:
++      resultWidth = std::max(w1, w2) + 1;
++      break;
++    case 0b10:
++      resultWidth = std::max(w1, w2 + 1) + 1;
++      break;
++    case 0b01:
++      resultWidth = std::max(w1 + 1, w2) + 1;
++      break;
++    }
++    break;
++  case Op::Sub:
++    switch (signedPair) {
++    case 0b00:
++      resultWidth = std::max(w1 + 1, w2 + 1);
++      break;
++    case 0b11:
++      resultWidth = std::max(w1 + 1, w2 + 1);
++      break;
++    case 0b10:
++      resultWidth = std::max(w1, w2 + 1) + 1;
++      break;
++    case 0b01:
++      resultWidth = std::max(w1 + 1, w2) + 1;
++      break;
++    }
++    break;
++  case Op::Mul:
++    resultWidth = w1 + w2;
++    break;
++  case Op::SDiv:
++    resultWidth = w1 + right.isSigned;
++    break;
++  case Op::SRem:
++    switch (signedPair) {
++    case 0b00:
++      resultWidth = std::min(w1, w2);
++      break;
++    case 0b11:
++      resultWidth = std::min(w1, w2);
++      break;
++    case 0b10:
++      resultWidth = std::min(w1, w2 + 1);
++      break;
++    case 0b01:
++      resultWidth = std::min(w1, std::max(1, w2 - 1));
++      break;
++    }
++    break;
++  default:
++    resultWidth = std::max(w1, w2);
++  }
++  if (NoExtend_) {
++    resultWidth = std::max(w1, w2);
++  }
++  if (resultWidth > xlen) {
++    warning("resultWidth > xlen", ts);
++  }
++
++  if (!left.isSigned && !right.isSigned)
++    switch (llop) {
++    case Op::SDiv:
++      llop = Op::UDiv;
++      break;
++    case Op::SRem:
++      llop = Op::URem;
++      break;
++    case Op::AShr:
++      llop = Op::LShr;
++      break;
++    default:
++      break;
++    }
++
++  left.bitWidth = resultWidth;
++  fit_to_size(left, build);
++
++  right.bitWidth = resultWidth;
++  fit_to_size(right, build);
++
++  auto v = Value(build.CreateBinOp(llop, left.ll, right.ll), outSigned);
++
++  if (op >= AssignmentAdd)
++    return gen_assign(ts, func, build, op, leftOriginal, v);
++  return v;
++}
++
++Value gen_ternary_relaxed(TokenStream &ts, llvm::Function *func,
++                          llvm::IRBuilder<> &build, TokenType op, Value left,
++                          Value right) {
++  // In C, the ternary operator only evaluates either the true expr or the false
++  // expr, not both. Doing that has negative effects on pattern generation
++  // though, so we evaluate both and then select between results here. This
++  // assumes that evaluation of both has no side effects! Ideally we would
++  // select between this and gen_ternary depending on if expressions have side
++  // effects or not (particularly ++/--).
++  auto valTrue = ParseExpression(ts, func, build);
++  pop_cur(ts, Colon);
++  auto valFalse = ParseExpression(ts, func, build);
++
++  promote_lvalue(build, valTrue);
++  promote_lvalue(build, valFalse);
++
++  promote_lvalue(build, left);
++  auto cond = build.CreateICmpNE(left.ll,
++                                 llvm::ConstantInt::get(left.ll->getType(), 0));
++
++  if (valTrue.ll->getType() != valFalse.ll->getType()) {
++    if (valTrue.bitWidth > valFalse.bitWidth) {
++      valFalse.bitWidth = valTrue.bitWidth;
++      fit_to_size(valFalse, build);
++    } else if (valTrue.bitWidth < valFalse.bitWidth) {
++      valTrue.bitWidth = valFalse.bitWidth;
++      fit_to_size(valTrue, build);
++    }
++  }
++
++  auto result = build.CreateSelect(cond, valTrue.ll, valFalse.ll);
++  return Value{result, valTrue.isSigned || valFalse.isSigned};
++}
++
++Value gen_ternary(TokenStream &ts, llvm::Function *func,
++                  llvm::IRBuilder<> &build, TokenType op, Value left,
++                  Value right) {
++  (void)right;
++  (void)op;
++  auto &ctx = func->getContext();
++
++  llvm::BasicBlock *blockTrue = llvm::BasicBlock::Create(ctx, "true", func);
++  llvm::BasicBlock *blockFalse = llvm::BasicBlock::Create(ctx, "false", func);
++  llvm::BasicBlock *blockTerm = llvm::BasicBlock::Create(ctx, "select", func);
++
++  promote_lvalue(build, left);
++
++  auto cond = build.CreateICmpNE(left.ll,
++                                 llvm::ConstantInt::get(left.ll->getType(), 0));
++  build.CreateCondBr(cond, blockTrue, blockFalse);
++
++  build.SetInsertPoint(blockTrue);
++  auto valTrue = ParseExpression(ts, func, build);
++  promote_lvalue(build, valTrue);
++
++  pop_cur(ts, Colon);
++
++  build.SetInsertPoint(blockFalse);
++  auto valFalse = ParseExpression(ts, func, build);
++  promote_lvalue(build, valFalse);
++
++  if (valTrue.ll->getType() != valFalse.ll->getType()) {
++    if (valTrue.bitWidth > valFalse.bitWidth) {
++      build.SetInsertPoint(blockFalse);
++      valFalse.bitWidth = valTrue.bitWidth;
++      fit_to_size(valFalse, build);
++    } else if (valTrue.bitWidth < valFalse.bitWidth) {
++      build.SetInsertPoint(blockTrue);
++      valTrue.bitWidth = valFalse.bitWidth;
++      fit_to_size(valTrue, build);
++    }
++  }
++  build.SetInsertPoint(blockFalse);
++  build.CreateBr(blockTerm);
++  build.SetInsertPoint(blockTrue);
++  build.CreateBr(blockTerm);
++
++  build.SetInsertPoint(blockTerm);
++
++  auto retval = build.CreatePHI(valTrue.ll->getType(), 2);
++  retval->addIncoming(valTrue.ll, blockTrue);
++  retval->addIncoming(valFalse.ll, blockFalse);
++
++  valTrue.ll = retval;
++  return valTrue;
++}
++
++Value gen_logical(TokenStream &ts, llvm::Function *func,
++                  llvm::IRBuilder<> &build, TokenType op, Value left,
++                  Value right) {
++  (void)right;
++  const auto i1 = llvm::Type::getInt1Ty(func->getContext());
++
++  auto &ctx = func->getContext();
++  llvm::BasicBlock *blockPre = build.GetInsertBlock();
++  llvm::BasicBlock *blockEvalRHS =
++      llvm::BasicBlock::Create(ctx, "logEvalRHS", func);
++  llvm::BasicBlock *blockPost = llvm::BasicBlock::Create(ctx, "logPost", func);
++
++  llvm::BasicBlock *trueBl = blockEvalRHS;
++  llvm::BasicBlock *falseBl = blockPost;
++  if (op == LogicalOR)
++    std::swap(trueBl, falseBl);
++  promote_lvalue(build, left);
++  build.CreateCondBr(build.CreateICmpNE(left.ll, llvm::ConstantInt::get(
++                                                     left.ll->getType(), 0)),
++                     trueBl, falseBl);
++
++  build.SetInsertPoint(blockEvalRHS);
++
++  // In the operator table this is handled as a unary op such that we can call
++  // ParseExpression for RHS ourselves here (we may only evaluate RHS if LHS
++  // does not short circuit)
++  auto valRight = ParseExpression(ts, func, build);
++  promote_lvalue(build, valRight);
++  auto valRightBool = build.CreateICmpNE(
++      valRight.ll, llvm::ConstantInt::get(valRight.ll->getType(), 0));
++
++  build.CreateBr(blockPost);
++  blockEvalRHS = build.GetInsertBlock();
++
++  build.SetInsertPoint(blockPost);
++
++  auto phi = build.CreatePHI(i1, 2);
++  phi->addIncoming(valRightBool, blockEvalRHS);
++  phi->addIncoming(llvm::ConstantInt::get(i1, (op == LogicalOR) ? 1 : 0),
++                   blockPre);
++  return Value(phi, false);
++}
++
++Value gen_concat(TokenStream &ts, llvm::Function *func,
++                 llvm::IRBuilder<> &build, TokenType op, Value left,
++                 Value right) {
++  promote_lvalue(build, left);
++  promote_lvalue(build, right);
++
++  left.bitWidth += right.bitWidth;
++  fit_to_size(left, build);
++  left.ll = build.CreateShl(
++      left.ll, llvm::ConstantInt::get(left.ll->getType(), right.bitWidth));
++
++  right.bitWidth = left.bitWidth;
++  {
++    bool rightSigned = right.isSigned;
++    right.isSigned = false;
++    fit_to_size(right, build);
++    right.isSigned = rightSigned;
++  }
++
++  left.ll = build.CreateOr(left.ll, right.ll);
++  return left;
++}
++
++Value gen_inc(bool isPost, TokenStream &ts, llvm::Function *func,
++              llvm::IRBuilder<> &build, TokenType op, Value left, Value right) {
++  auto &ctx = func->getContext();
++
++  check_lvalue(left, ts, build.GetInsertBlock());
++
++  auto pre = build.CreateAlignedLoad(
++      llvm::Type::getIntNTy(ctx, left.bitWidth), left.ll,
++      llvm::Align(ceil_to_pow2(left.bitWidth) / 8));
++  auto post = build.CreateAdd(
++      pre, llvm::ConstantInt::get(pre->getType(), (op == Decrement) ? -1 : 1));
++  build.CreateAlignedStore(post, left.ll,
++                           llvm::Align(ceil_to_pow2(left.bitWidth) / 8));
++
++  return Value(isPost ? post : pre, left.isSigned);
++}
++
++// this can be updated to std::bind_front once LLVM switches to a newer standard
++auto gen_preinc = std::bind(&gen_inc, false, _1, _2, _3, _4, _5, _6);
++auto gen_postinc = std::bind(&gen_inc, true, _1, _2, _3, _4, _5, _6);
++
++struct Operator {
++  using OpSig = Value(TokenStream &ts, llvm::Function *func,
++                      llvm::IRBuilder<> &build, TokenType op, Value left,
++                      Value right);
++  uint8_t prec;
++  bool rassoc;
++  bool unary;
++  std::function<OpSig> func;
++  Operator(uint8_t prec, bool rassoc, bool unary, std::function<OpSig> &&func)
++      : prec(15 - prec), rassoc(rassoc), unary(unary), func(func) {}
++};
++
++// clang-format off
++static const Operator precTable[] =
++{
++    [ABrOpen]              = Operator(1,  0, 1, gen_subscript),
++    [Plus]                 = Operator(4,  0, 0, gen_binop),
++    [Minus]                = Operator(4,  0, 0, gen_binop),
++    [Multiply]             = Operator(3,  0, 0, gen_binop),
++    [Divide]               = Operator(3,  0, 0, gen_binop),
++    [Modulo]               = Operator(3,  0, 0, gen_binop),
++    [ShiftLeft]            = Operator(5,  0, 0, gen_binop),
++    [ShiftRight]           = Operator(5,  0, 0, gen_binop),
++    [LessThan]             = Operator(6,  0, 0, gen_compare),
++    [GreaterThan]          = Operator(6,  0, 0, gen_compare),
++    [LessThanEq]           = Operator(6,  0, 0, gen_compare),
++    [GreaterThanEq]        = Operator(6,  0, 0, gen_compare),
++    [Equals]               = Operator(7,  0, 0, gen_compare),
++    [NotEquals]            = Operator(7,  0, 0, gen_compare),
++    [BitwiseAND]           = Operator(8,  0, 0, gen_binop),
++    [BitwiseOR]            = Operator(10, 0, 0, gen_binop),
++    [BitwiseXOR]           = Operator(9,  0, 0, gen_binop),
++    [LogicalAND]           = Operator(12, 0, 1, gen_logical),
++    [LogicalOR]            = Operator(13, 0, 1, gen_logical),
++    [Ternary]              = Operator(14, 1, 1, gen_ternary_relaxed),
++    [BitwiseConcat]        = Operator(11, 0, 0, gen_concat),
++    [Assignment]           = Operator(15, 1, 0, gen_assign),
++    [AssignmentAdd]        = Operator(15, 1, 0, gen_binop),
++    [AssignmentSub]        = Operator(15, 1, 0, gen_binop),
++    [AssignmentMul]        = Operator(15, 1, 0, gen_binop),
++    [AssignmentDiv]        = Operator(15, 1, 0, gen_binop),
++    [AssignmentMod]        = Operator(15, 1, 0, gen_binop),
++    [AssignmentAND]        = Operator(15, 1, 0, gen_binop),
++    [AssignmentOR]         = Operator(15, 1, 0, gen_binop),
++    [AssignmentXOR]        = Operator(15, 1, 0, gen_binop),
++    [AssignmentShiftRight] = Operator(15, 0, 0, gen_binop),
++    [AssignmentShiftLeft]  = Operator(15, 0, 0, gen_binop),
++    [Increment]            = Operator(1,  0, 1, gen_preinc),
++    [Decrement]            = Operator(1,  0, 1, gen_preinc),
++};
++// clang-format on
++
++static auto find_var(uint32_t identIdx) {
++  return std::find_if(
++      curInstr->fields.begin(), curInstr->fields.end(),
++      [identIdx](CDSLInstr::Field &f) { return f.identIdx == identIdx; });
++}
++
++Value ParseExpressionTerminal(TokenStream &ts, llvm::Function *func,
++                              llvm::IRBuilder<> &build) {
++  auto &ctx = func->getContext();
++  const auto memTypes = {"MEM8", "MEM16", "MEM32", "MEM64", "MEMX"};
++  switch (ts.Peek().type) {
++  case Identifier: {
++    auto t = ts.Pop();
++
++    // rd is true to skip "if (rd != 0)" checks.
++    if (t.ident.str == "rd")
++      return {llvm::ConstantInt::get(regT, 1)};
++
++    auto *memIt = llvm::find(memTypes, t.ident.str);
++    if (memIt != memTypes.end()) {
++      pop_cur(ts, ABrOpen);
++      auto addr = ParseExpression(ts, func, build);
++      pop_cur(ts, ABrClose);
++      promote_lvalue(build, addr);
++      auto *addrPtr =
++          build.CreateIntToPtr(addr.ll, llvm::PointerType::get(ctx, 0));
++
++      int len = 8 << (memIt - memTypes.begin());
++      if (memIt == memTypes.end() - 1)
++        len = xlen;
++      return Value{addrPtr, len, false};
++    }
++    if (t.ident.str == "X" || t.ident.str == "XW") {
++      bool sizeIs32 = t.ident.str == "XW";
++      pop_cur(ts, ABrOpen);
++      auto ident = pop_cur(ts, Identifier).ident;
++      pop_cur(ts, ABrClose);
++
++      auto match = find_var(ident.idx);
++      if (match != curInstr->fields.end()) {
++        if (!(match->type & CDSLInstr::REG))
++          error((std::string(t.ident.str) +
++                 " is used as a register ID but not defined as such")
++                    .c_str(),
++                ts);
++        sizeIs32 |= (match->type & CDSLInstr::IS_32_BIT);
++        return Value{func->getArg(match - curInstr->fields.begin()),
++                     sizeIs32 ? 32 : xlen,
++                     (bool)(match->type & CDSLInstr::SIGNED_REG)};
++      }
++      error(("undefined register ID: " + std::string(ident.str)).c_str(), ts);
++    } else {
++      auto match = find_var(t.ident.idx);
++      if (match != curInstr->fields.end()) {
++        if (!(match->type & CDSLInstr::IMM))
++          error((std::string(t.ident.str) +
++                 " is used as an immediate but not defined as such")
++                    .c_str(),
++                ts);
++
++        auto *arg = func->getArg(match - curInstr->fields.begin());
++
++        Value v = {arg, (bool)(match->type & CDSLInstr::SIGNED)};
++        v.bitWidth = xlen;
++        return v;
++      }
++    }
++
++    auto iter = variables.find(t.ident.idx);
++    if (iter != variables.end())
++      return iter->getSecond().back().val;
++
++    error(("undefined symbol: " + std::string(t.ident.str)).c_str(), ts);
++  }
++  case IntLiteral: {
++    Token t = ts.Pop();
++    return Value(
++        llvm::ConstantInt::get(llvm::Type::getIntNTy(ctx, t.literal.bitLen),
++                               t.literal.value, t.literal.isSigned),
++        t.literal.isSigned);
++  }
++  case Minus: {
++    ts.Pop();
++    auto expr = ParseExpression(ts, func, build, 15 - 2);
++    promote_lvalue(build, expr);
++    expr.bitWidth++;
++    fit_to_size(expr, build);
++    expr.ll = build.CreateNeg(expr.ll);
++    expr.isSigned = true;
++    return expr;
++  }
++  case BitwiseNOT: {
++    ts.Pop();
++    auto expr = ParseExpression(ts, func, build, 15 - 2);
++    promote_lvalue(build, expr);
++    expr.ll = build.CreateNot(expr.ll);
++    return expr;
++  }
++  case LogicalNOT: {
++    ts.Pop();
++    auto expr = ParseExpression(ts, func, build, 15 - 2);
++    promote_lvalue(build, expr);
++    expr.ll = build.CreateICmpEQ(expr.ll,
++                                 llvm::ConstantInt::get(expr.ll->getType(), 0));
++    return expr;
++  }
++  case Increment:
++  case Decrement: {
++    auto ttype = ts.Pop().type;
++    auto expr = ParseExpression(ts, func, build, 15 - 2);
++    return gen_postinc(ts, func, build, ttype, expr, Value());
++  }
++  case RBrOpen: {
++    ts.Pop();
++    // Cast
++    if (ts.Peek().type == SignedKeyword || ts.Peek().type == UnsignedKeyword) {
++      bool isSigned = (ts.Pop().type == SignedKeyword);
++
++      int len = 0;
++      if (pop_cur_if(ts, LessThan)) {
++        // TODO: share code with definition
++        switch (ts.Peek().type) {
++        case IntLiteral: {
++          len = pop_cur(ts, IntLiteral).literal.value;
++          break;
++        }
++        case Identifier: {
++          // TODO: Call ParseExpression instead?
++          auto t = ts.Pop();
++          auto iter = variables.find(t.ident.idx);
++          if (iter != variables.end()) {
++            Value val = iter->getSecond().back().val;
++            if (!llvm::isa<llvm::ConstantInt>(val.ll))
++              not_implemented(ts);
++            len = llvm::cast<llvm::ConstantInt>(val.ll)->getLimitedValue();
++          }
++          break;
++        }
++        default: {
++          syntax_error(ts);
++        }
++        }
++        if (len <= 0)
++          error("invalid size", ts);
++        pop_cur(ts, GreaterThan);
++      }
++      pop_cur(ts, RBrClose);
++
++      auto v = ParseExpression(ts, func, build, 15 - 2);
++
++      if (len != 0) {
++        promote_lvalue(build, v);
++        auto newType = llvm::Type::getIntNTy(ctx, len);
++
++        if (v.bitWidth > len)
++          v.ll = build.CreateTrunc(v.ll, newType);
++        if (v.bitWidth < len) {
++          if (v.isSigned)
++            v.ll = build.CreateSExt(v.ll, newType);
++          else
++            v.ll = build.CreateZExt(v.ll, newType);
++        }
++        v.bitWidth = len;
++      }
++      v.isSigned = isSigned;
++      return v;
++    } else {
++      auto rv = ParseExpression(ts, func, build);
++      pop_cur(ts, RBrClose);
++      return rv;
++    }
++    break;
++  }
++  default:
++    syntax_error(ts);
++  }
++}
++
++Value ParseExpression(TokenStream &ts, llvm::Function *func,
++                      llvm::IRBuilder<> &build, int minPrec) {
++  Value left = ParseExpressionTerminal(ts, func, build);
++
++  while (true) {
++    TokenType tt = ts.Peek().type;
++    if (!(tt >= OP_START && tt <= OP_END))
++      return left;
++
++    Operator const op = precTable[tt - OP_START];
++    if (op.prec < minPrec)
++      return left;
++    if (op.func == nullptr)
++      not_implemented(ts);
++
++    ts.Pop();
++
++    Value right;
++    if (!op.unary)
++      right = ParseExpression(ts, func, build, op.prec + (op.rassoc ? 0 : 1));
++    left = op.func(ts, func, build, tt, left, right);
++  }
++}
++
++struct VarDef {
++  std::string_view ident;
++  uint32_t identIdx;
++  int bitSize;
++  bool sgn;
++};
++
++VarDef ParseDefinition(TokenStream &ts) {
++  bool sgn = pop_cur_if(ts, SignedKeyword);
++  if (!sgn)
++    pop_cur(ts, UnsignedKeyword);
++
++  int bitSize = -1;
++  if (pop_cur_if(ts, LessThan)) {
++    // TODO: share code with cast
++    switch (ts.Peek().type) {
++    case IntLiteral: {
++      bitSize = pop_cur(ts, IntLiteral).literal.value;
++      break;
++    }
++    case Identifier: {
++      // TODO: Call ParseExpression instead?
++      auto t = ts.Pop();
++      auto iter = variables.find(t.ident.idx);
++      if (iter != variables.end()) {
++        Value val = iter->getSecond().back().val;
++        if (!llvm::isa<llvm::ConstantInt>(val.ll))
++          not_implemented(ts);
++        bitSize = llvm::cast<llvm::ConstantInt>(val.ll)->getLimitedValue();
++      }
++      break;
++    }
++    default: {
++      syntax_error(ts);
++    }
++    }
++    if (bitSize <= 0)
++      error("invalid size", ts);
++    pop_cur(ts, GreaterThan);
++  }
++  auto ident = pop_cur(ts, Identifier).ident;
++  uint32_t id = ident.idx;
++
++  return VarDef{.ident = ident.str,
++                .identIdx = ident.idx,
++                .bitSize = bitSize,
++                .sgn = sgn};
++}
++
++void ParseDeclaration(TokenStream &ts, llvm::Function *func,
++                      llvm::IRBuilder<> &build) {
++  auto &ctx = func->getContext();
++
++  auto [ident, identIdx, bitSize, sgn] = ParseDefinition(ts);
++
++  std::optional<Value> init;
++  if (pop_cur_if(ts, Assignment)) {
++    init = ParseExpression(ts, func, build);
++    promote_lvalue(build, init.value());
++    if (bitSize == -1)
++      bitSize = init->bitWidth;
++    if (init->bitWidth > bitSize)
++      implicit_truncation(ts);
++    init->bitWidth = bitSize;
++    fit_to_size(init.value(), build);
++  }
++
++  Value v;
++  v.bitWidth = bitSize;
++  v.isSigned = sgn;
++  v.isLValue = true;
++  {
++    llvm::BasicBlock *cur = build.GetInsertBlock();
++    if (entry->getTerminator() == nullptr)
++      build.SetInsertPoint(entry);
++    else
++      build.SetInsertPoint(entry->getTerminator());
++    v.ll =
++        build.CreateAlloca(llvm::Type::getIntNTy(ctx, ceil_to_pow2(bitSize)));
++    build.SetInsertPoint(cur);
++  }
++
++  if (init.has_value())
++    build.CreateStore(init->ll, v.ll, false);
++
++  add_variable(ts, identIdx, v);
++  pop_cur(ts, Semicolon);
++}
++
++void ParseStatement(TokenStream &ts, llvm::Function *func,
++                    llvm::IRBuilder<> &build) {
++  auto &ctx = func->getContext();
++
++  switch (ts.Peek().type) {
++  case IfKeyword: {
++    ts.Pop();
++    pop_cur(ts, RBrOpen);
++    Value cond = ParseExpression(ts, func, build);
++    pop_cur(ts, RBrClose);
++
++    llvm::Value *condBool = build.CreateICmpNE(
++        cond.ll, llvm::ConstantInt::get(cond.ll->getType(), 0));
++    llvm::BasicBlock *bbTrue = llvm::BasicBlock::Create(ctx, "", func);
++    llvm::BasicBlock *bbFalse = llvm::BasicBlock::Create(ctx, "", func);
++    build.CreateCondBr(condBool, bbTrue, bbFalse);
++
++    build.SetInsertPoint(bbTrue);
++    ParseStatement(ts, func, build);
++
++    if (pop_cur_if(ts, ElseKeyword)) {
++      llvm::BasicBlock *bbCont = llvm::BasicBlock::Create(ctx, "", func);
++      build.CreateBr(bbCont);
++      build.SetInsertPoint(bbFalse);
++      ParseStatement(ts, func, build);
++      build.CreateBr(bbCont);
++      build.SetInsertPoint(bbCont);
++    } else {
++      build.CreateBr(bbFalse);
++      build.SetInsertPoint(bbFalse);
++    }
++    break;
++  }
++  case WhileKeyword:
++  case ForKeyword: {
++    llvm::BasicBlock *bbHdr = llvm::BasicBlock::Create(ctx, "loop_hdr", func);
++    llvm::BasicBlock *bbBody = llvm::BasicBlock::Create(ctx, "loop_body", func);
++    llvm::BasicBlock *bbBreak =
++        llvm::BasicBlock::Create(ctx, "loop_break", func);
++    llvm::BasicBlock *bbInc = nullptr;
++
++    bool isFor = ts.Pop().type == ForKeyword;
++    pop_cur(ts, RBrOpen);
++    if (isFor) {
++      create_var_scope();
++      if (!pop_cur_if(ts, Semicolon))
++        ParseDeclaration(ts, func, build);
++    }
++
++    build.CreateBr(bbHdr);
++    build.SetInsertPoint(bbHdr);
++
++    Value cond = ParseExpression(ts, func, build);
++    if (isFor) {
++      bbInc = llvm::BasicBlock::Create(ctx, "loop_inc", func);
++      pop_cur(ts, Semicolon);
++      build.SetInsertPoint(bbInc);
++      if (!pop_cur_if(ts, Semicolon))
++        ParseExpression(ts, func, build);
++      build.CreateBr(bbHdr);
++      build.SetInsertPoint(bbHdr);
++    }
++    pop_cur(ts, RBrClose);
++
++    llvm::Value *condBool = build.CreateICmpEQ(
++        cond.ll, llvm::ConstantInt::get(cond.ll->getType(), 0));
++    build.CreateCondBr(condBool, bbBreak, bbBody);
++    build.SetInsertPoint(bbBody);
++
++    ParseStatement(ts, func, build);
++
++    build.CreateBr(isFor ? bbInc : bbHdr);
++    build.SetInsertPoint(bbBreak);
++
++    if (isFor)
++      pop_var_scope();
++    break;
++  }
++  case UnsignedKeyword:
++  case SignedKeyword: {
++    ParseDeclaration(ts, func, build);
++    break;
++  }
++  case CBrOpen:
++    ParseScope(ts, func, build);
++    break;
++  default: {
++    ParseExpression(ts, func, build);
++    pop_cur(ts, Semicolon);
++    break;
++  }
++  }
++}
++
++void ParseScope(TokenStream &ts, llvm::Function *func,
++                llvm::IRBuilder<> &build) {
++  pop_cur(ts, CBrOpen);
++  create_var_scope();
++
++  while (ts.Peek().type != CBrClose)
++    ParseStatement(ts, func, build);
++
++  pop_var_scope();
++  pop_cur(ts, CBrClose);
++}
++
++int ParseAttributes(TokenStream &ts) {
++  using FieldType = CDSLInstr::FieldType;
++
++  // Sign bit specifies whether to OR or AND the mask, so just do
++  // ~MY_FIELD to unset myField.
++  const static llvm::DenseMap<llvm::StringRef, std::pair<uint, bool>>
++      attrMap = {{"is_unsigned", {~FieldType::SIGNED_REG, 0}},
++                 {"is_signed", {FieldType::SIGNED_REG, 0}},
++                 {"is_imm", {FieldType::IMM, 0}},
++                 {"is_reg", {FieldType::REG, 0}},
++                 {"in", {FieldType::IN, 0}},
++                 {"out", {FieldType::OUT, 0}},
++                 {"inout", {(FieldType::IN | FieldType::OUT), 0}},
++                 {"is_32_bit", {FieldType::IS_32_BIT, 0}}};
++
++  uint acc = 0;
++  while (ts.Peek().type == ABrOpen) {
++    for (int i = 0; i < 2; i++)
++      pop_cur(ts, ABrOpen);
++
++    bool allowArg = true;
++
++    auto ident = pop_cur(ts, Identifier).ident;
++    std::string attrName = std::string{ident.str};
++    std::transform(attrName.begin(), attrName.end(), attrName.begin(),
++                 [](unsigned char c) { return std::tolower(c); });
++    auto iter = attrMap.find(attrName);
++    if (iter != attrMap.end()) {
++      uint op = iter->getSecond().first;
++      allowArg = iter->getSecond().second;
++      if (op & (1UL << (std::numeric_limits<uint>::digits - 1)))
++        acc &= op;
++      else
++        acc |= op;
++    }
++
++    if (pop_cur_if(ts, Assignment)) {
++      if (!allowArg)
++        error("attribute does not take an argument", ts);
++      if (!llvm::find(std::array{Identifier, IntLiteral, StringLiteral},
++                      ts.Pop().type))
++        error("invalid attribute", ts);
++    }
++
++    for (int i = 0; i < 2; i++)
++      pop_cur(ts, ABrClose);
++  }
++
++  return (CDSLInstr::FieldType)acc;
++}
++
++int ParseOperandAttributes(TokenStream &ts) {
++  return ParseAttributes(ts);
++}
++
++void ParseInstructionAttributes(TokenStream &ts, CDSLInstr &instr) {
++  // ignore attributes
++  ParseAttributes(ts);
++}
++
++void ParseSetAttributes(TokenStream &ts) {
++  // ignore attributes
++  ParseAttributes(ts);
++}
++
++void ParseOperands(TokenStream &ts, CDSLInstr &instr) {
++
++  pop_cur(ts, OperandsKeyword);
++  pop_cur(ts, Colon);
++  bool scope = pop_cur_if(ts, CBrOpen);
++
++  while (peek_is_type(ts)) {
++    auto vd = ParseDefinition(ts);
++    uint type = ParseOperandAttributes(ts) | CDSLInstr::FieldType::NON_CONST;
++    type = (type & ~CDSLInstr::SIGNED) | (vd.sgn ? CDSLInstr::SIGNED : 0);
++
++    instr.fields.push_back(
++        CDSLInstr::Field{.len = (uint8_t)vd.bitSize,
++                         .ident = vd.ident,
++                         .identIdx = vd.identIdx,
++                         .type = (CDSLInstr::FieldType)type});
++
++    pop_cur(ts, Semicolon);
++  }
++
++  if (scope)
++    pop_cur(ts, CBrClose);
++}
++
++void ParseEncoding(TokenStream &ts, CDSLInstr &instr) {
++  pop_cur(ts, EncodingKeyword);
++  pop_cur(ts, Colon);
++
++  uint offset = 48;
++  uint preDefIdx = instr.fields.size();
++
++  while (1) {
++    switch (ts.Peek().type) {
++    case IntLiteral: {
++      auto litT = ts.Pop();
++      uint8_t len = litT.literal.bitLen;
++      uint32_t val = litT.literal.value;
++      offset -= len;
++      // Create field with 0xFF placeholder index
++      instr.frags.push_back(
++          CDSLInstr::FieldFrag{0xFF, len, (uint8_t)offset, (uint8_t)offset, val});
++      break;
++    }
++    case Identifier: {
++      auto idT = ts.Pop();
++
++      pop_cur(ts, ABrOpen);
++      auto hi = pop_cur(ts, IntLiteral).literal.value;
++      auto lo = hi;
++      if (pop_cur_if(ts, Colon))
++        lo = pop_cur(ts, IntLiteral).literal.value;
++      pop_cur(ts, ABrClose);
++
++      if (lo > hi || lo > 31 || hi > 31)
++        error("out of bounds", ts);
++
++      auto len = (hi - lo + 1);
++      offset -= len;
++
++      // Check if a field definition for this identifier exists already
++      auto match = std::find_if(
++          instr.fields.begin(), instr.fields.end(),
++          [&idT](CDSLInstr::Field &f) { return f.identIdx == idT.ident.idx; });
++      if (match == instr.fields.end()) {
++        instr.fields.push_back(CDSLInstr::Field{.len = 0,
++                                                .ident = idT.ident.str,
++                                                .identIdx = idT.ident.idx,
++                                                .type = CDSLInstr::NON_CONST});
++        match = &instr.fields.back();
++      }
++      size_t matchIdx = match - instr.fields.begin();
++      if (matchIdx > 255)
++        error("too many instruction fields", ts);
++
++      // for implicitly defined fields we have to accumulate the length of
++      // fragments
++      if (matchIdx >= preDefIdx)
++        match->len += len;
++      else {
++        // For explictly defined fields we can do bounds checking
++        if (hi >= match->len)
++          error("out of bounds", ts);
++      }
++
++      // Create a field fragment referencing the field definition
++      instr.frags.push_back((CDSLInstr::FieldFrag){.idx = (uint8_t)matchIdx,
++                                                   .len = (uint8_t)len,
++                                                   .dstOffset = (uint8_t)offset,
++                                                   .srcOffset = (uint8_t)lo,
++                                                   .val = 0});
++
++      break;
++    }
++    default:
++      syntax_error(ts);
++    }
++    if (pop_cur_if(ts, Semicolon)) {
++      if (offset != 0) {
++        if (offset != 16 && offset != 32) {
++          error("instruction length is not 16/32/48 bits", ts);
++        }
++        // Shift the field offsets by 16/32 bits
++        for (auto &frag : instr.frags)
++          if (frag.idx == 255) {
++            frag.srcOffset = frag.srcOffset - offset;
++            frag.dstOffset = frag.dstOffset - offset;
++          } else {
++            frag.dstOffset = frag.dstOffset - offset;
++          }
++      }
++      break;
++    }
++    pop_cur(ts, BitwiseConcat);
++  }
++  uint8_t size = 48 - offset;
++  instr.size = size;
++
++  // Rather than splitting up the constant bits of the instruction into multiple
++  // fields, we use one trailing constant field of size 32/48. FieldFragments can
++  // index into relevant sections of this single field.
++  instr.fields.push_back(CDSLInstr::Field{
++      .len = size, .constV = 0, .type = CDSLInstr::FieldType::CONST});
++  if (instr.fields.size() > 255)
++    error("too many instruction fields", ts);
++  uint8_t constIdx = instr.fields.size() - 1;
++
++  // Reference newly created constant field in all constant frags
++  for (auto &frag : instr.frags)
++    if (frag.idx == 255) {
++      frag.idx = constIdx;
++      instr.fields[constIdx].constV |= (frag.val << frag.srcOffset);
++    }
++}
++
++void ParseArguments(TokenStream &ts, CDSLInstr &instr) {
++  auto str = std::string(pop_cur(ts, StringLiteral).strLit.str);
++
++  // To support old-style implicit field definitions, we (also) use the argument
++  // string to determine whether a field is an immediate or a register file
++  // index. This is not a problem when using well-formed instruction
++  // definitions, but also not particularly clean.
++  for (auto &f : instr.fields) {
++    auto fstr = std::string(f.ident);
++    std::string strNew;
++    strNew = std::regex_replace(str, std::regex("\\{name\\(" + fstr + "\\)\\}"),
++                                "$" + fstr);
++    if (strNew != str)
++      f.type = (CDSLInstr::FieldType)(f.type | CDSLInstr::FieldType::REG);
++    str = strNew;
++    strNew =
++        std::regex_replace(str, std::regex("\\{" + fstr + "\\}"), "$" + fstr);
++    if (strNew != str)
++      f.type = (CDSLInstr::FieldType)(f.type | CDSLInstr::FieldType::IMM | CDSLInstr::FieldType::IN);
++    str = strNew;
++  }
++
++  instr.argString = str;
++}
++
++void ParseAssembly(TokenStream &ts, CDSLInstr &instr) {
++  pop_cur(ts, AssemblyKeyword);
++  pop_cur(ts, Colon);
++
++  std::string mnemonic = instr.name;
++  std::replace(mnemonic.begin(), mnemonic.end(), '_', '.');
++  std::transform(mnemonic.begin(), mnemonic.end(), mnemonic.begin(),
++                   [](unsigned char c) { return std::tolower(c); });
++
++  if (pop_cur_if(ts, CBrOpen)) {
++    mnemonic = std::string(pop_cur(ts, StringLiteral).strLit.str);
++    pop_cur(ts, Comma);
++    ParseArguments(ts, instr);
++    pop_cur(ts, CBrClose);
++  } else {
++    ParseArguments(ts, instr);
++  }
++
++  instr.mnemonic = mnemonic;
++
++  pop_cur(ts, Semicolon);
++}
++
++void ParseBehaviour(TokenStream &ts, CDSLInstr &instr, llvm::Module *mod,
++                    Token const &ident) {
++  auto &ctx = mod->getContext();
++  auto ptrT = llvm::PointerType::get(ctx, 0);
++  auto immT = regT;
++  llvm::SmallVector<llvm::Type *, 8> argTypes;
++  llvm::SmallVector<llvm::StringRef, 8> argNames;
++  llvm::SmallVector<int, 8> argBitLens;
++
++  for (auto const &field : curInstr->fields) {
++    if (!(field.type & CDSLInstr::NON_CONST)) {
++      assert(&field == &curInstr->fields.back());
++      break;
++    }
++
++    llvm::Type *argT = ptrT;
++    int argBitLen = -1;
++
++    if (field.type & CDSLInstr::IMM) {
++      argT = immT;
++      argBitLen = field.len;
++    }
++
++    if ((field.type & CDSLInstr::IMM) && (field.type & CDSLInstr::REG))
++      error(("field " + std::string(field.ident) + " of " + instr.name +
++             " is both immediate and register ID")
++                .c_str(),
++            ts);
++
++    argTypes.push_back(argT);
++    argNames.push_back(field.ident);
++    argBitLens.push_back(argBitLen);
++  }
++
++  auto fType =
++      llvm::FunctionType::get(llvm::Type::getVoidTy(ctx), argTypes, false);
++
++  pop_cur(ts, BehaviorKeyword);
++  pop_cur(ts, Colon);
++
++  llvm::Function *func = llvm::Function::Create(
++      fType, llvm::GlobalValue::ExternalLinkage,
++      std::string("impl") + std::string(ident.ident.str), mod);
++
++  for (size_t i = 0; i < argNames.size(); i++)
++    func->getArg(i)->setName(argNames[i]);
++
++  // For vectorization to work, we must assume that
++  // the destination does not overlap with sources.
++  // For simulators using this generated code, this means
++  // that rd has to be a pointer to a temporary variable.
++  for (size_t i = 0; i < curInstr->fields.size(); i++)
++    if (curInstr->fields[i].type & CDSLInstr::OUT)
++      func->getArg(i)->addAttr(llvm::Attribute::NoAlias);
++
++  entry = llvm::BasicBlock::Create(ctx, "", func);
++  llvm::IRBuilder<> build(entry);
++
++  // Generate range assumes for immediates
++  for (size_t i = 0; i < argBitLens.size(); i++)
++    if (argBitLens[i] != -1) {
++      auto *arg = func->getArg(i);
++      auto *maskC =
++          llvm::ConstantInt::get(arg->getType(), (1ULL << argBitLens[i]) - 1);
++
++      auto *cond = build.CreateICmpEQ(arg, build.CreateAnd(arg, maskC));
++      build.CreateIntrinsic(llvm::Type::getVoidTy(ctx), llvm::Intrinsic::assume,
++                            {cond});
++    }
++
++  ParseStatement(ts, func, build);
++  build.CreateRetVoid();
++}
++
++std::vector<CDSLInstr> ParseCoreDSL2(TokenStream &ts, bool is64Bit,
++                                     llvm::Module *mod, bool NoExtend) {
++  std::vector<CDSLInstr> instrs;
++  xlen = is64Bit ? 64 : 32;
++  NoExtend_ = NoExtend;
++  regT = llvm::Type::getIntNTy(mod->getContext(), xlen);
++
++  while (ts.Peek().type != None) {
++    bool parseBoilerplate =
++        ts.Peek().type == Identifier && ts.Peek().ident.str == "InstructionSet";
++    if (parseBoilerplate) {
++      ++PatternGenNumSetsParsed;
++      pop_cur(ts, Identifier);
++      pop_cur(ts, Identifier);
++      if (pop_cur_if(ts, ExtendsKeyword))
++        pop_cur(ts, Identifier);
++      ParseSetAttributes(ts);
++      pop_cur(ts, CBrOpen);
++      pop_cur(ts, InstructionsKeyword);
++      pop_cur(ts, CBrOpen);
++    }
++
++    while (ts.Peek().type != CBrClose && ts.Peek().type != None) {
++      reset_globals();
++
++      // add XLEN and RFS as constants for now.
++      add_variable(ts, ts.GetIdentIdx("XLEN"),
++                   Value{llvm::ConstantInt::get(regT, xlen)});
++      add_variable(ts, ts.GetIdentIdx("RFS"),
++                   Value{llvm::ConstantInt::get(regT, 32)});
++      ++PatternGenNumInstructionsParsed;
++
++      Token ident = pop_cur(ts, Identifier);
++      CDSLInstr instr{.name = std::string(ident.ident.str)};
++      curInstr = &instr;
++
++      ParseInstructionAttributes(ts, instr);
++      pop_cur(ts, CBrOpen);
++
++      if (ts.Peek().type == OperandsKeyword)
++        ParseOperands(ts, instr);
++      ParseEncoding(ts, instr);
++      ParseAssembly(ts, instr);
++      ParseBehaviour(ts, instr, mod, ident);
++
++      pop_cur(ts, CBrClose);
++      instrs.push_back(instr);
++    }
++
++    if (parseBoilerplate) {
++      pop_cur(ts, CBrClose);
++      pop_cur(ts, CBrClose);
++    }
++  }
++  return instrs;
++}
++
+diff --git a/llvm/tools/pattern-gen/lib/Parser.hpp b/llvm/tools/pattern-gen/lib/Parser.hpp
+new file mode 100644
+index 000000000..4952bc063
+--- /dev/null
++++ b/llvm/tools/pattern-gen/lib/Parser.hpp
+@@ -0,0 +1,8 @@
++#pragma once
++#include "InstrInfo.hpp"
++#include "TokenStream.hpp"
++#include <llvm/IR/Module.h>
++
++std::vector<CDSLInstr> ParseCoreDSL2(TokenStream &ts, bool is64Bit,
++                                     llvm::Module *mod, bool NoExtend);
++
+diff --git a/llvm/tools/pattern-gen/lib/Token.hpp b/llvm/tools/pattern-gen/lib/Token.hpp
+new file mode 100644
+index 000000000..2667b5d83
+--- /dev/null
++++ b/llvm/tools/pattern-gen/lib/Token.hpp
+@@ -0,0 +1,144 @@
++#pragma once
++#include <stdint.h>
++#include <memory>
++#include <string_view>
++
++enum TokenType
++{
++    // These tokens can be associated with
++    // binops or postfix unops (or ternary).
++    // They should be in one block for precedence LUT.
++    OP_START = 0,
++    ABrOpen = OP_START,
++    Plus,
++    Minus,
++    Multiply,
++    Divide,
++    Modulo,
++    ShiftLeft,
++    ShiftRight,
++    LessThan,
++    GreaterThan,
++    LessThanEq,
++    GreaterThanEq,
++    Equals,
++    NotEquals,
++    BitwiseAND,
++    BitwiseOR,
++    BitwiseXOR,
++    LogicalAND,
++    LogicalOR,
++    Ternary,
++    BitwiseConcat,
++
++    Assignment,
++    AssignmentAdd,
++    AssignmentSub,
++    AssignmentMul,
++    AssignmentDiv,
++    AssignmentMod,
++    AssignmentAND,
++    AssignmentOR,
++    AssignmentXOR,
++    AssignmentShiftRight,
++    AssignmentShiftLeft,
++    Increment,
++    Decrement,
++    OP_END = Decrement,
++
++    // Remaining tokens, order of these does not matter.
++    None,
++    RBrOpen,
++    RBrClose,
++    CBrOpen,
++    CBrClose,
++    ABrClose,
++    BitwiseNOT,
++    LogicalNOT,
++    Colon,
++    PlusColon,
++    MinusColon,
++    Comma,
++    Semicolon,
++
++    TOK_KW_START,
++    IfKeyword = TOK_KW_START,
++    ElseKeyword,
++    WhileKeyword,
++    ForKeyword,
++    OperandsKeyword,
++    EncodingKeyword,
++    AssemblyKeyword,
++    BehaviorKeyword,
++    ExtendsKeyword,
++    InstructionsKeyword,
++    SignedKeyword,
++    UnsignedKeyword,
++
++    TOK_KW_END = UnsignedKeyword,
++
++    Identifier,
++    IntLiteral,
++    StringLiteral,
++};
++
++struct Token
++{
++    TokenType type;
++    union
++    {
++        struct
++        {
++            uint32_t idx;
++            std::string_view str;
++        } ident;
++        struct
++        {
++            bool isSigned;
++            unsigned bitLen;
++            uint64_t value;
++        } literal;
++        struct
++        {
++            std::string_view str;
++        } strLit;
++    };
++
++    Token (TokenType type) : type(type) {}
++    Token (uint32_t identIdx, std::string_view&& identStr) : type(Identifier)
++    {
++        ident.str = identStr;
++        ident.idx = identIdx;
++    }
++    Token (bool isSigned, unsigned bitLen, uint64_t value) : type(IntLiteral)
++    {
++        literal.isSigned = isSigned;
++        literal.bitLen = bitLen;
++        literal.value = value;
++    }
++    Token (std::string_view&& stringLiteral) : type(StringLiteral)
++    {
++        strLit.str = stringLiteral;
++    }
++
++    bool operator== (Token const& b)
++    {
++        if (b.type != type) return false;
++        switch (type)
++        {
++            case Identifier: return b.ident.idx == ident.idx;
++            case StringLiteral: return b.strLit.str == strLit.str;
++            case IntLiteral: return
++                b.literal.isSigned == literal.isSigned &&
++                b.literal.bitLen == literal.bitLen &&
++                b.literal.value == literal.value;
++            default: return true;
++        }
++    }
++    bool operator!= (Token const& b)
++    {
++        return !(*this == b);
++    }
++
++};
++
+diff --git a/llvm/tools/pattern-gen/lib/TokenStream.cpp b/llvm/tools/pattern-gen/lib/TokenStream.cpp
+new file mode 100644
+index 000000000..001e84c41
+--- /dev/null
++++ b/llvm/tools/pattern-gen/lib/TokenStream.cpp
+@@ -0,0 +1,215 @@
++#include "TokenStream.hpp"
++#include "Lexer.hpp"
++#include <cassert>
++#include <iostream>
++#include <fstream>
++#include <cerrno>
++#include <iterator>
++
++static int clog2 (uint64_t n)
++{
++    if (n == 0) return 1;
++    return std::max(64 - __builtin_clzl(n), 1);
++}
++
++Token TokenStream::Pop()
++{
++    if (peekToken.has_value())
++    {
++        Token t = peekToken.value();
++        peekToken.reset();
++        return t;
++    }
++
++    size_t len = src.length();
++    const char* srcC = src.c_str();
++
++    while (1)
++    {
++        // Skip whitespace
++        while (isspace(srcC[i]))
++        {
++            if (srcC[i] == '\n') lineNumber++;
++            i++;
++        }
++
++        // Single Line Comment
++        if (srcC[i] == '/' && srcC[i + 1] == '/')
++        {
++            while (i < len && srcC[i] != '\n')
++                i++;
++            continue;
++        }
++
++        /* Multi-line
++           Comment  */
++        if (srcC[i] == '/' && srcC[i + 1] == '*')
++        {
++            i += 2;
++            while (i < len && !(srcC[i - 2] == '*' && src[i - 1] == '/'))
++            {
++                if (srcC[i-2] == '\n') lineNumber++;
++                i++;
++            }
++            continue;
++        }
++        break;
++    }
++
++    if (i == len)
++        return Token(None);
++
++    { // Try lexing operator
++        TokenType t;
++        size_t nextI = LexOperator(srcC, i, &t);
++        if (nextI != 0)
++        {
++            i = nextI;
++            return Token(t);
++        }
++    }
++
++    // Try lexing keywords or tokens
++    if (isalpha(srcC[i]) || srcC[i] == '_')
++    {
++        size_t identLen = 1;
++        while (1)
++        {
++            char c = srcC[i + identLen];
++            if (!isdigit(c) && !isalpha(c) && c != '_')
++                break;
++            identLen++;
++        }
++        std::string_view substr(srcC + i, identLen);
++        i += identLen;
++        auto iter = strings.find(substr);
++        if (iter != strings.end())
++        {
++            if (iter->second < NUM_KEYWORDS)
++                return Token((TokenType)(TOK_KW_START + iter->second));
++            else
++                return Token(iter->second - NUM_KEYWORDS, std::move(substr));
++        }
++        else
++        {
++            uint32_t idx = (strings[substr] = strings.size());
++            return Token(idx - NUM_KEYWORDS, std::move(substr));
++        }
++    }
++
++    // Int Literal
++    if (isdigit(srcC[i]))
++    {
++        bool isBase10 = srcC[i] != 0 && srcC[i + 1] != 'b' && srcC[i + 1] != 'x';
++        uint64_t literal;
++        size_t iCopy = i;
++
++        {
++            const char* startPtr = src.c_str() + iCopy;
++            char* endPtr;
++            literal = strtoul(startPtr, &endPtr, 0);
++            if (startPtr == endPtr) return Token(None);
++            iCopy += endPtr - startPtr;
++        }
++
++        if (isBase10 && srcC[iCopy] == '\'')
++        {
++            // Do not support sized literals larger than 64 bit
++            if (literal > 64)
++                return Token(None);
++
++            iCopy++;
++            bool isSigned = (srcC[iCopy] == 's');
++            if (isSigned)
++                iCopy++;
++
++            int base;
++            switch (srcC[iCopy])
++            {
++                case 'h': base = 16; break;
++                case 'd': base = 10; break;
++                case 'o': base = 8; break;
++                case 'b': base = 2; break;
++                default: return Token(None);
++            }
++            iCopy++;
++
++            size_t literal2;
++            {
++                const char* startPtr = src.c_str() + iCopy;
++                char* endPtr;
++                literal2 = strtoul(startPtr, &endPtr, base);
++                if (startPtr == endPtr) return Token(None);
++                iCopy += endPtr - startPtr;
++            }
++
++
++            i = iCopy;
++            return Token(isSigned, literal, literal2);
++        }
++        i = iCopy;
++        return Token(false, clog2(literal), literal);
++    }
++
++    // String Literal
++    if (srcC[i] == '\"')
++    {
++        size_t litLen = 1;
++        if (i + litLen >= len)
++            return Token(None);
++        while (srcC[i + litLen] != '\"')
++        {
++            if (srcC[i + litLen] == '\n')
++                return Token(None);
++            litLen++;
++            if (i + litLen >= len)
++                return Token(None);
++        }
++
++        Token t = Token(std::string_view(srcC + i + 1, litLen - 1));
++        i += litLen + 1;
++        return t;
++    }
++
++    return Token(None);
++}
++
++Token TokenStream::Peek()
++{
++    if (!peekToken.has_value())
++        peekToken = Pop();
++    return peekToken.value();
++}
++
++static std::string read_file_as_str (std::string path)
++{
++    std::ifstream ifs(path);
++    if (!ifs) {
++        fprintf(stderr, "Aborting! File does not exist: %s\n", path.c_str());
++        exit(-1);
++    }
++    std::string content((std::istreambuf_iterator<char>(ifs)),
++                        std::istreambuf_iterator<char>());
++
++    return content;
++}
++
++unsigned TokenStream::GetIdentIdx(std::string_view ident)
++{
++    auto it = strings.find(ident);
++    if (it == strings.end())
++        return (strings[ident] = strings.size()) - NUM_KEYWORDS;
++    return it->second - NUM_KEYWORDS;
++}
++
++std::string_view TokenStream::GetIdent(unsigned identIdx)
++{
++    identIdx += NUM_KEYWORDS;
++    auto it = strings.begin();
++    std::advance(it, identIdx);
++    assert(it->second == identIdx);
++    return it->first;
++}
++
++TokenStream::TokenStream(std::string&& srcPath) : path(srcPath), src(read_file_as_str(srcPath)) {}
++
+diff --git a/llvm/tools/pattern-gen/lib/TokenStream.hpp b/llvm/tools/pattern-gen/lib/TokenStream.hpp
+new file mode 100644
+index 000000000..2d1f8f8e3
+--- /dev/null
++++ b/llvm/tools/pattern-gen/lib/TokenStream.hpp
+@@ -0,0 +1,40 @@
++#pragma once
++#include <string>
++#include <optional>
++#include <map>
++#include "Token.hpp"
++
++struct TokenStream
++{
++    const std::string path;
++    const std::string src;
++    size_t i = 0;
++    int lineNumber = 1;
++
++  private:
++    std::optional<Token> peekToken;
++    std::map<std::string_view, uint32_t> strings =
++    { // initialize with keywords
++        std::make_pair("if",IfKeyword-TOK_KW_START),
++        std::make_pair("else",ElseKeyword-TOK_KW_START),
++        std::make_pair("while",WhileKeyword-TOK_KW_START),
++        std::make_pair("for",ForKeyword-TOK_KW_START),
++        std::make_pair("operands",OperandsKeyword-TOK_KW_START),
++        std::make_pair("encoding",EncodingKeyword-TOK_KW_START),
++        std::make_pair("assembly",AssemblyKeyword-TOK_KW_START),
++        std::make_pair("behavior",BehaviorKeyword-TOK_KW_START),
++        std::make_pair("extends",ExtendsKeyword-TOK_KW_START),
++        std::make_pair("instructions",InstructionsKeyword-TOK_KW_START),
++        std::make_pair("signed", SignedKeyword-TOK_KW_START),
++        std::make_pair("unsigned", UnsignedKeyword-TOK_KW_START),
++    };
++    const size_t NUM_KEYWORDS = strings.size();
++
++  public:
++    TokenStream (std::string&& srcPath);
++    Token Pop();
++    Token Peek();
++    unsigned GetIdentIdx(std::string_view ident);
++    std::string_view GetIdent(unsigned identIdx);
++};
++
