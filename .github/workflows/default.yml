@@ -830,7 +830,7 @@ jobs:
 
   stats:
     if: github.event_name == 'push'
-    needs: [flow]
+    needs: [run_examples]
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
@@ -872,7 +872,7 @@ jobs:
           # force: true
   publish:
     if: ${{ github.event.client_payload.is_pr != 'true' && github.event.client_payload.from == '' }}
-    needs: [flow,finalize]
+    needs: [setup_etiss, finalize]
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python ${{ matrix.python-version }}
