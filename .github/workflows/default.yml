@@ -845,8 +845,7 @@ jobs:
             echo "PR_EXISTS=0" >> $GITHUB_OUTPUT
           fi
       - name: Switch to PR Branch
-        if: ${{ steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && needs.check.outputs.num_changed }}
-          != '0' && success()
+        if: ${{ steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && needs.check.outputs.num_changed != '0' && success() }}
         run: |
           git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
           # git fetch --all
