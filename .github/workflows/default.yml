@@ -159,7 +159,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
         run: |
-          sudo apt-get update
+          sudo apt update
           sudo apt -qq install -y python3-pip python3-venv
       - name: Install Python dependencies
         run: |
@@ -259,10 +259,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install APT dependencies
-        run: |
-          sudo apt-get update
-          sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -297,6 +293,10 @@ jobs:
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
             }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}
+      - name: Install APT dependencies
+        run: |
+          sudo apt update
+          sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
       - name: Build ETISS
         if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
         id: etiss-compile
@@ -518,7 +518,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
         run: |
-          sudo apt-get update
+          sudo apt update
           sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev jq
       - name: Configure Git
         run: |
@@ -721,7 +721,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
         run: |
-          sudo apt-get update
+          sudo apt update
           sudo apt -qq install -y python3-pip python3-venv cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
       - name: Configure Git
         run: |
