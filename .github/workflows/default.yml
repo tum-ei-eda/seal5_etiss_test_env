@@ -213,13 +213,13 @@ jobs:
           # TODO: generalize
           python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc
           python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage
-    - name: Upload M2ISAR Model artifacts
+      - name: Upload M2ISAR Model artifacts
         if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
-      uses: actions/upload-artifact@v4
-      with:
-         name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
-         path: |
-           etiss_arch_riscv/gen_model
+        uses: actions/upload-artifact@v4
+        with:
+          name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
+          path: |
+            etiss_arch_riscv/gen_model
       - name: Patch ETISS
         if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
         run: |
