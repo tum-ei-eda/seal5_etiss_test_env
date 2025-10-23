@@ -67,10 +67,6 @@ jobs:
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install virtualenv
       - name: Clone Repo and Submodules
         uses: actions/checkout@v4
         with:
@@ -126,6 +122,10 @@ jobs:
           echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
           git diff > update_refs.patch
+          echo >> $GITHUB_STEP_SUMMARY
+          echo "Update Refs Patch:" >> $GITHUB_STEP_SUMMARY
+          cat update_refs.patch >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
       - name: Add and count changed files
         id: count_files
         working-directory: ./
@@ -161,6 +161,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt -qq install -y python3-pip python3-venv
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install virtualenv
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -464,14 +468,13 @@ jobs:
           set +o pipefail
       - name: Add ETISS SW Build Summary (Failure)
         if: ${{ steps.etiss-build-sw-llvm.outcome == 'failure' || steps.etiss-build-sw-gcc.outcome == 'failure' }}
-          == 'failure'
         run: |
           echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           echo "**ETISS SW Build Outputs:**" >> $GITHUB_STEP_SUMMARY
           # echo "```" >> $GITHUB_STEP_SUMMARY
-          cat etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
+          cat etiss_riscv_examples/etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           # echo "```" >> $GITHUB_STEP_SUMMARY
           # echo >> $GITHUB_STEP_SUMMARY
