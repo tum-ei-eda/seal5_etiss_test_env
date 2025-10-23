@@ -860,7 +860,7 @@ jobs:
           git checkout -b pr_update_${{ github.event.client_payload.from }}
           # git stash pop
       - name: Commit Refs to PR branch
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
           git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
       - name: Push changes to PR branch
