@@ -311,8 +311,7 @@ jobs:
           cmake --install etiss/build 2>&1 | tee -a etiss_compile_out.txt
           set +o pipefail
       - name: Add ETISS Compile Summary (Failure)
-        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && steps.etiss-compile.outcome }}
-          != 'success'
+        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && steps.etiss-compile.outcome != 'success' }}
         run: |
           echo "### ETISS Compile Status" >> $GITHUB_STEP_SUMMARY
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
