@@ -14,16 +14,16 @@ on:
       - etiss_arch_riscv
       - riscv-tests  # TODO: add triggers
       - etiss_riscv_tests  # TODO: add triggers
-  pull_request:
-    branches: [main]
-    paths:
-      - .github/workflows/default.yml
-      - etiss
-      - etiss_riscv_examples
-      - M2-ISA-R
-      - etiss_arch_riscv
-      - riscv-tests  # TODO: add triggers
-      - etiss_riscv_tests  # TODO: add triggers
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - .github/workflows/default.yml
+  #     - etiss
+  #     - etiss_riscv_examples
+  #     - M2-ISA-R
+  #     - etiss_arch_riscv
+  #     - riscv-tests  # TODO: add triggers
+  #     - etiss_riscv_tests  # TODO: add triggers
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -43,7 +43,452 @@ permissions:
   actions: write
   pull-requests: write
 jobs:
-  flow:
+  check:
+    outputs:
+      etiss_ref: ${{ steps.refs.outputs.etiss_ref }}
+      etiss_riscv_tests_ref: ${{ steps.refs.outputs.etiss_riscv_tests_ref }}
+      examples_ref: ${{ steps.refs.outputs.examples_ref }}
+      m2isar_ref: ${{ steps.refs.outputs.m2isar_ref }}
+      cdsl_ref: ${{ steps.refs.outputs.cdsl_ref }}
+      num_changed: ${{ steps.count_files.outputs.NUM_CHANGED }}
+    strategy:
+      fail-fast: false
+      # fail-fast: true
+      matrix:
+        ubuntu-version: [22.04]
+        python-version: ['3.10']
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Clone Repo and Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Add Summary Header
+        run: |
+          echo "### Summary" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+      - name: Update Summary (Trigger)
+        run: |
+          echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+      - name: Update CDSL ref
+        if: ${{ github.event.client_payload.from == 'cdsl' && success() }}
+        run: |
+          git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
+          git -C etiss_arch_riscv submodule update --init --recursive
+          git add etiss_arch_riscv
+          echo "Updated Ref: etiss_arch_riscv -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+      - name: Update M2-ISA-R ref
+        # if: github.event.event_type == 'm2isar-event'
+        if: ${{ github.event.client_payload.from == 'm2isar' && success() }}
+        run: |
+          git -C M2-ISA-R fetch
+          git -C M2-ISA-R branch -a
+          git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
+          git add M2-ISA-R
+          echo "Updated Ref: M2-ISA-R -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+      - name: Update Examples ref
+        if: ${{ github.event.client_payload.from == 'examples' && success() }}
+        run: |
+          git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
+          git -C etiss_riscv_examples submodule update --init --recursive
+          git add etiss_riscv_examples
+          echo "Updated Ref: etiss_riscv_examples -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+      - name: Update ETISS ref
+        # if: github.event.event_type == 'etiss-event'
+        if: ${{ github.event.client_payload.from == 'etiss' && success() }}
+        run: |
+          git -C etiss checkout ${{ github.event.client_payload.ref }}
+          git -C etiss submodule update --init --recursive
+          git add etiss
+          echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
+      - name: Get Refs
+        if: success()
+        id: refs
+        run: |
+          echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "etiss_riscv_tests_ref=$(git -C etiss_riscv_tests rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
+          git diff > update_refs.patch
+          echo >> $GITHUB_STEP_SUMMARY
+          echo "Update Refs Patch:" >> $GITHUB_STEP_SUMMARY
+          cat update_refs.patch >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+      - name: Add and count changed files
+        id: count_files
+        working-directory: ./
+        run: |
+          NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
+          echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
+      - name: Upload Refs Patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: refs-patch
+          path: update_refs.patch
+  patch_etiss:
+    outputs:
+      output1: ${{ steps.step1.outputs.test }}
+      output2: ${{ steps.step2.outputs.test }}
+    needs: [check]
+    strategy:
+      fail-fast: false
+      # fail-fast: true
+      matrix:
+        ubuntu-version: [22.04]
+        python-version: ['3.10']
+        config:
+          - {ETISS_ARCH: RV32IMACFD, ETISS_BASE_ARCH: RV32IMACFD}
+          - {ETISS_ARCH: RV64IMACFD, ETISS_BASE_ARCH: RV64IMACFD}
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install APT dependencies
+        run: |
+          sudo apt update
+          sudo apt -qq install -y python3-pip python3-venv
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install virtualenv
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Clone Repo and Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
+        with:
+          name: refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        run: |
+          git apply update_refs.patch
+          rm update_refs.patch
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
+      - name: Cache ETISS Patch
+        id: cache-etiss-patch
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-etiss-patch
+        with:
+          path: ${{ github.workspace }}/etiss.patch
+          key: etiss-patch-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
+            }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
+            }}-${{ matrix.config.ETISS_ARCH }}
+      - name: Setup M2-ISA-R
+        if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
+        run: |
+          cd M2-ISA-R
+          virtualenv -p python${{ matrix.python-version }} venv
+          source venv/bin/activate
+          pip install -e .
+          echo "ETISS Patch Cache Miss -> re-gen required" >> $GITHUB_STEP_SUMMARY
+      - name: Run M2-ISA-R
+        if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
+        run: |
+          cd M2-ISA-R
+          source venv/bin/activate
+          # TODO: generalize
+          python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc
+          python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage
+      - name: Upload M2ISAR Model artifacts
+        if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
+          path: |
+            etiss_arch_riscv/gen_model
+      - name: Patch ETISS
+        if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
+        run: |
+          cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/${{ matrix.config.ETISS_ARCH }}/ etiss/ArchImpl/  # TODO: generalize!
+          cd etiss
+          git restore ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+          git diff > ${{ github.workspace }}/etiss.patch
+          cd -
+      - name: Re-apply Cached ETISS Patch
+        if: ${{ steps.cache-etiss-patch.outputs.cache-hit == 'true' && success() }}
+        run: |
+          cd etiss
+          git apply ${{ github.workspace }}/etiss.patch
+          cd -
+      - name: Upload ETISS Patch
+        uses: actions/upload-artifact@v4
+        with:
+          name: etiss-patch-${{ matrix.config.ETISS_ARCH }}
+          path: ${{ github.workspace }}/etiss.patch
+  setup_etiss:
+    outputs:
+      output1: ${{ steps.step1.outputs.test }}
+      output2: ${{ steps.step2.outputs.test }}
+    needs: [check, patch_etiss]
+    strategy:
+      fail-fast: false
+      # fail-fast: true
+      matrix:
+        ubuntu-version: [22.04]
+        python-version: ['3.10']
+        config:
+          - {ETISS_ARCH: RV32IMACFD, ETISS_BASE_ARCH: RV32IMACFD}
+          - {ETISS_ARCH: RV64IMACFD, ETISS_BASE_ARCH: RV64IMACFD}
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Clone Repo and Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
+        with:
+          name: refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        run: |
+          git apply update_refs.patch
+          rm update_refs.patch
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
+      - name: Download Cached ETISS Binaries
+        if: success()
+        id: cache-etiss
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-etiss-binaries
+        with:
+          path: etiss/build/install
+          key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
+            }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
+            }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}
+      - name: Install APT dependencies
+        run: |
+          sudo apt update
+          sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
+      - name: Build ETISS
+        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
+        id: etiss-compile
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd etiss/PluginImpl
+          ln -s ../../etiss_riscv_tests/FileLoggerPlugin .
+          cd ../..
+          cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} 2>&1 | tee -a etiss_compile_out.txt
+          cmake --build etiss/build -j$(nproc) 2>&1 | tee -a etiss_compile_out.txt
+          cmake --install etiss/build 2>&1 | tee -a etiss_compile_out.txt
+          set +o pipefail
+      - name: Add ETISS Compile Summary (Failure)
+        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && steps.etiss-compile.outcome != 'success' }}
+        run: |
+          echo "### ETISS Compile Status" >> $GITHUB_STEP_SUMMARY
+          echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          echo "**ETISS Compile Outputs:**" >> $GITHUB_STEP_SUMMARY
+          # echo "```" >> $GITHUB_STEP_SUMMARY
+          cat etiss_compile_out.txt >> $GITHUB_STEP_SUMMARY
+          # echo >> $GITHUB_STEP_SUMMARY
+          # echo "```" >> $GITHUB_STEP_SUMMARY
+          # echo >> $GITHUB_STEP_SUMMARY
+          exit 1
+      - name: Upload ETISS Install
+        uses: actions/upload-artifact@v4
+        with:
+          name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
+            }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
+            }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}
+          path: etiss/build/install
+  setup_examples:
+    outputs:
+      output1: ${{ steps.step1.outputs.test }}
+      output2: ${{ steps.step2.outputs.test }}
+    needs: [check]
+    strategy:
+      fail-fast: false
+      # fail-fast: true
+      matrix:
+        ubuntu-version: [22.04]
+        python-version: ['3.10']
+        toolchain: [gcc, llvm]
+        config:
+          # Multilib GCC is missing rv32imacfd build!
+          # - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
+          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac_zicsr_zifencei, ETISS_ARCH: RV32IMACFD,
+             ETISS_BASE_ARCH: RV32IMACFD, ABI: ilp32, XLEN: 32, TEST_EXTS: imacfd}
+          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imafc, ETISS_ARCH: RV32IMACFD,
+             ETISS_BASE_ARCH: RV32IMACFD, ABI: ilp32f, XLEN: 32, TEST_EXTS: imacf}  # rv32gc not supported by multilib gcc
+          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: RV64IMACFD,
+             ETISS_BASE_ARCH: RV64IMACFD, ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Clone Repo and Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
+        with:
+          name: refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        run: |
+          git apply update_refs.patch
+          rm update_refs.patch
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
+      - name: Cache Examples
+        if: success()
+        id: cache-examples
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-examples
+        with:
+          path: etiss_riscv_examples/build/install
+          key: examples-binaries-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
+            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
+      - name: Download Cached GCC Binaries
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && success() }}
+        id: cache-gcc
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-gcc-binaries
+        with:
+          path: gnu/  # TODO: move?
+          key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME
+            }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date
+            }}
+          # restore-keys: |
+          #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
+      - name: Download RISCV-GNU-Toolchain
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && steps.cache-gcc.outputs.cache-hit != 'true' && success() }}
+        run: |
+          wget -q https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
+          mkdir gnu
+          cd gnu
+          tar xf ../gnu.tar.xz
+          cd ..
+          rm gnu.tar.xz
+          ls gnu
+          echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
+      - name: Download Cached LLVM Binaries
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm' && success() }}
+        id: cache-llvm
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-llvm-binaries
+        with:
+          path: llvm/  # TODO: move?
+          key: llvm-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.LLVM_VERSION
+            }}-${{ steps.date.outputs.date }}
+      - name: Download LLVM Toolchain
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm' && steps.cache-llvm.outputs.cache-hit != 'true' && success() }}
+        run: |
+          wget -q https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_VERSION }}/clang+llvm-${{ env.LLVM_VERSION }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz -O llvm.tar.xz
+          mkdir llvm
+          cd llvm
+          tar xf ../llvm.tar.xz
+          cd ..
+          rm llvm.tar.xz
+          ls llvm
+          echo "LLVM Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
+      - name: Build Examples (LLVM)
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm' && success() }}
+        id: etiss-build-sw-llvm
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd etiss_riscv_examples
+          export PATH=$(pwd)/../llvm/bin/:$PATH
+          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} 2>&1 | tee -a etiss_sw_build_out.txt
+          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
+              echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
+              cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
+          done
+          cmake --install build
+          set +o pipefail
+      - name: Build Examples (GCC)
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'gcc' && success() }}
+        id: etiss-build-sw-gcc
+        continue-on-error: true
+        run: |
+          # TODO: also run GCC here!
+          set -o pipefail
+          cd etiss_riscv_examples
+          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} 2>&1 | tee -a etiss_sw_build_out.txt
+          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
+              echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
+              cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
+          done
+          cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
+          set +o pipefail
+      - name: Add ETISS SW Build Summary (Failure)
+        if: ${{ steps.etiss-build-sw-llvm.outcome == 'failure' || steps.etiss-build-sw-gcc.outcome == 'failure' }}
+        run: |
+          echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
+          echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          echo "**ETISS SW Build Outputs:**" >> $GITHUB_STEP_SUMMARY
+          # echo "```" >> $GITHUB_STEP_SUMMARY
+          cat etiss_riscv_examples/etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          # echo "```" >> $GITHUB_STEP_SUMMARY
+          # echo >> $GITHUB_STEP_SUMMARY
+          exit 1
+      - name: Upload Prebuilt Examples
+        uses: actions/upload-artifact@v4
+        with:
+          name: examples-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
+            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
+          path: etiss_riscv_examples/build/install
+  run_examples:
+    outputs:
+      output1: ${{ steps.step1.outputs.test }}
+      output2: ${{ steps.step2.outputs.test }}
+    needs: [check, setup_etiss, setup_examples]
     strategy:
       fail-fast: false
       # fail-fast: true
@@ -64,6 +509,7 @@ jobs:
              ETISS_BASE_ARCH: RV32IMACFD, ABI: ilp32f, XLEN: 32, TEST_EXTS: imacf}  # rv32gc not supported by multilib gcc
           - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: RV64IMACFD,
              ETISS_BASE_ARCH: RV64IMACFD, ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
+    # TODO: commit etiss changes? -> Generate patch file?
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -72,261 +518,69 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
         run: |
-          sudo apt-get update
-          sudo apt -qq install -y python3-pip python3-venv cmake make ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev jq
+          sudo apt update
+          sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev jq
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install virtualenv
       - name: Clone Repo and Submodules
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Add Summary Header
-        run: |
-          echo "### Summary" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-      - name: Update Summary (Trigger)
-        run: |
-          echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-      - name: Update CDSL ref
-        if: github.event.client_payload.from == 'cdsl' && success()
-        run: |
-          git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
-          git -C etiss_arch_riscv submodule update --init --recursive
-          git add etiss_arch_riscv
-          echo "Updated Ref: etiss_arch_riscv -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-      - name: Update M2-ISA-R ref
-        # if: github.event.event_type == 'm2isar-event'
-        if: github.event.client_payload.from == 'm2isar' && success()
-        run: |
-          git -C M2-ISA-R fetch
-          git -C M2-ISA-R branch -a
-          git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
-          git add M2-ISA-R
-          echo "Updated Ref: M2-ISA-R -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-      - name: Update Examples ref
-        if: github.event.client_payload.from == 'examples' && success()
-        run: |
-          git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
-          git -C etiss_riscv_examples submodule update --init --recursive
-          git add etiss_riscv_examples
-          echo "Updated Ref: etiss_riscv_examples -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-      - name: Update ETISS ref
-        # if: github.event.event_type == 'etiss-event'
-        if: github.event.client_payload.from == 'etiss' && success()
-        run: |
-          git -C etiss checkout ${{ github.event.client_payload.ref }}
-          git -C etiss submodule update --init --recursive
-          git add etiss
-          echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-      - name: Get Refs
-        if: success()
-        id: refs
-        run: |
-          echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "etiss_riscv_tests_ref=$(git -C etiss_riscv_tests rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
-      - name: Download Cached ETISS Binaries
-        if: success()
-        id: cache-etiss
-        uses: actions/cache@v4
-        env:
-          cache-name: cache-etiss-binaries
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
         with:
+          name: update_refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        run: |
+          git apply update_refs.patch
+          rm update_refs.patch
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
+      - name: Download Prebuilt Examples
+        uses: actions/download-artifact@v5
+        with:
+          name: examples-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
+            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
+          path: etiss_riscv_examples/build/install
+      - name: Download Prebuilt ETISS
+        uses: actions/download-artifact@v4
+        with:
+          name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
+            }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
+            }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}
           path: etiss/build/install
-          key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ steps.refs.outputs.etiss_ref
-            }}-${{ steps.refs.outputs.m2isar_ref }}-${{ steps.refs.outputs.cdsl_ref
-            }}-${{ matrix.config.ETISS_ARCH }}-${{ steps.refs.outputs.etiss_riscv_tests_ref
-            }}
-      - name: Setup M2-ISA-R
-        if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
-        run: |
-          cd M2-ISA-R
-          virtualenv -p python${{ matrix.python-version }} venv
-          source venv/bin/activate
-          pip install -e .
-          echo "ETISS Cache Miss -> rebuild required" >> $GITHUB_STEP_SUMMARY
-      - name: Run M2-ISA-R
-        if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
-        run: |
-          cd M2-ISA-R
-          source venv/bin/activate
-          # TODO: generalize
-          python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc
-          python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage
-
-    # - name: Upload M2ISAR Model artifacts
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #      name: m2isar-model-files
-    #      path: |
-    #        riscv-coredsl-extensions/gen_output
-      - name: Patch ETISS
-        if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
-        run: |
-          # cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/* etiss/ArchImpl/  # TODO: generalize!
-          cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/${{ matrix.config.ETISS_ARCH }}/ etiss/ArchImpl/  # TODO: generalize!
-          cd etiss
-          # cp ArchImpl/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_BASE_ARCH }}ArchSpecificImp.cpp ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
-          # sed -i "s/${{ matrix.config.ETISS_BASE_ARCH }}/${{ matrix.config.ETISS_ARCH }}/g" ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
-          # TODO: if ETISS_ARCH == ETISS_BASE_ARCH
-          git restore ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
-          git diff > ${{ github.workspace }}/etiss.patch
-          cd -
-      - name: Upload ETISS Patch
-        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && matrix.jit == 'TCC' && matrix.toolchain == 'gcc' && ( matrix.config.ARCH == 'rv32imafc' || matrix.config.ARCH == 'rv64imafdc' )}}
-        uses: actions/upload-artifact@v4
-        with:
-          name: etiss-patch-${{ matrix.config.ETISS_ARCH }}
-          path: ${{ github.workspace }}/etiss.patch
-      - name: Build ETISS
-        if: steps.cache-etiss.outputs.cache-hit != 'true' && success()
-        id: etiss-compile
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          cd etiss/PluginImpl
-          ln -s ../../etiss_riscv_tests/FileLoggerPlugin .
-          cd ../..
-          cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} 2>&1 | tee -a etiss_compile_out.txt
-          cmake --build etiss/build -j$(nproc) 2>&1 | tee -a etiss_compile_out.txt
-          cmake --install etiss/build 2>&1 | tee -a etiss_compile_out.txt
-          set +o pipefail
-      - name: Add ETISS Compile Summary (Failure)
-        if: steps.cache-etiss.outputs.cache-hit != 'true' && steps.etiss-compile.outcome
-          != 'success'
-        run: |
-          echo "### ETISS Compile Status" >> $GITHUB_STEP_SUMMARY
-          echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-          echo "**ETISS Compile Outputs:**" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
-          cat etiss_compile_out.txt >> $GITHUB_STEP_SUMMARY
-          # echo >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
-          # echo >> $GITHUB_STEP_SUMMARY
-          exit 1
-      - name: Download Cached GCC Binaries
-        if: success()
-        id: cache-gcc
-        uses: actions/cache@v4
-        env:
-          cache-name: cache-gcc-binaries
-        with:
-          path: gnu/  # TODO: move?
-          key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME
-            }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date
-            }}
-          # restore-keys: |
-          #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
-      - name: Download RISCV-GNU-Toolchain
-        if: steps.cache-gcc.outputs.cache-hit != 'true' && success()
-        run: |
-          wget -q https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
-          mkdir gnu
-          cd gnu
-          tar xf ../gnu.tar.xz
-          cd ..
-          rm gnu.tar.xz
-          ls gnu
-          echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
-      - name: Download Cached LLVM Binaries
-        if: ${{ matrix.toolchain == 'llvm' && success() }}
-        id: cache-llvm
-        uses: actions/cache@v4
-        env:
-          cache-name: cache-llvm-binaries
-        with:
-          path: llvm/  # TODO: move?
-          key: llvm-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.LLVM_VERSION
-            }}-${{ steps.date.outputs.date }}
-      - name: Download LLVM Toolchain
-        if: ${{ matrix.toolchain == 'llvm' && steps.cache-llvm.outputs.cache-hit != 'true' && success() }}
-        run: |
-          wget -q https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_VERSION }}/clang+llvm-${{ env.LLVM_VERSION }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz -O llvm.tar.xz
-          mkdir llvm
-          cd llvm
-          tar xf ../llvm.tar.xz
-          cd ..
-          rm llvm.tar.xz
-          ls llvm
-          echo "LLVM Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
-      - name: Build Examples (LLVM)
-        if: ${{ matrix.toolchain == 'llvm' && success() }}
-        id: etiss-build-sw-llvm
-        continue-on-error: true
-        run: |
-          set -o pipefail
-          cd etiss_riscv_examples
-          export PATH=$(pwd)/../llvm/bin/:$PATH
-          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} 2>&1 | tee -a etiss_sw_build_out.txt
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
-              echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
-              cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
-          done
-          cmake --install build
-          set +o pipefail
-      - name: Build Examples (GCC)
-        if: ${{ matrix.toolchain == 'gcc' && success() }}
-        id: etiss-build-sw-gcc
-        continue-on-error: true
-        run: |
-          # TODO: also run GCC here!
-          set -o pipefail
-          cd etiss_riscv_examples
-          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} 2>&1 | tee -a etiss_sw_build_out.txt
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
-              echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
-              cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
-          done
-          cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
-          set +o pipefail
-      - name: Add ETISS SW Build Summary (Failure)
-        if: steps.etiss-build-sw-llvm.outcome == 'failure' || steps.etiss-build-sw-gcc.outcome
-          == 'failure'
-        run: |
-          echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
-          echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-          echo "**ETISS SW Build Outputs:**" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
-          cat etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
-          # echo >> $GITHUB_STEP_SUMMARY
-          exit 1
-
-    # TODO: commit etiss changes? -> Generate patch file?
       - name: Run Examples on ${{ matrix.config.ETISS_ARCH }}
         if: success()
         id: etiss-run-sw
         continue-on-error: true
         run: |
+          ls
+          echo A
+          ls etiss/build/install
+          echo B
           set -o pipefail
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          chmod +x etiss/build/install/bin/bare_etiss_processor
           for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "--- Program: $prog ---" | tee -a etiss_sw_run_out.txt
               timeout 5m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
               if [[ -f stats.json ]]
               then
-                  jq -s "[.[] + {prog: \"$prog\", jit: \"${{ matrix.jit}}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ github.sha }}\", etiss_sha: \"${{ steps.refs.outputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
+                  jq -s "[.[] + {prog: \"$prog\", jit: \"${{ matrix.jit}}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ github.sha }}\", etiss_sha: \"${{ needs.check.outputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
                   rm stats.json
               fi
           done
           jq -s '[.[][]?]' stats*.json > combined_stats.json
           set +o pipefail
       - name: Add ETISS SW Run Summary (Failure)
-        if: steps.etiss-run-sw.outcome != 'success'
+        if: ${{ steps.etiss-run-sw.outcome != 'success' }}
         run: |
           echo "### ETISS SW Run Status" >> $GITHUB_STEP_SUMMARY
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
@@ -339,7 +593,7 @@ jobs:
           echo >> $GITHUB_STEP_SUMMARY
           exit 1
       - name: Upload ETISS Outputs
-        if: success() || failure()
+        if: ${{ success() || failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: etiss-output-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH
@@ -348,7 +602,7 @@ jobs:
             matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
           path: etiss_sw_run_out.txt
       - name: Upload ETISS Stats (MIPS)
-        if: success() || failure()
+        if: ${{ success() || failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: etiss-stats-default-${{ matrix.config.ETISS_ARCH
@@ -357,13 +611,56 @@ jobs:
             matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
           path: combined_stats.json
       - name: Add ETISS SW Run Summary (Metrics)
-        if: steps.etiss-run-sw.outcome == 'success'
+        if: ${{ steps.etiss-run-sw.outcome == 'success' }}
         run: |
           echo "### ETISS SW Run Metrics" >> $GITHUB_STEP_SUMMARY
           # echo "```" >> $GITHUB_STEP_SUMMARY
           egrep '(\-\-\- Program:|MIPS \(estimated\):|Simulation Time:|CPU Cycles \(estimated\):)' etiss_sw_run_out.txt >> $GITHUB_STEP_SUMMARY
           # echo "```" >> $GITHUB_STEP_SUMMARY
           # echo >> $GITHUB_STEP_SUMMARY
+  setup_tests:
+    outputs:
+      output1: ${{ steps.step1.outputs.test }}
+      output2: ${{ steps.step2.outputs.test }}
+    needs: [check]
+    strategy:
+      fail-fast: false
+      # fail-fast: true
+      matrix:
+        ubuntu-version: [22.04]
+        python-version: ['3.10']
+        config:
+          - {XLEN: 32}
+          - {XLEN: 64}
+    # TODO: commit etiss changes? -> Generate patch file?
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Clone Repo and Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
+        with:
+          name: refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        run: |
+          git apply update_refs.patch
+          rm update_refs.patch
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
       - name: Build ETISS RISC-V Tests
         id: etiss-build-riscv-tests
         run: |
@@ -375,7 +672,7 @@ jobs:
           make RISCV_PREFIX=riscv64-unknown-elf- XLEN=${{ matrix.config.XLEN }} isa -j `nproc` 2>&1 | tee -a etiss_riscv_tests_build_out.txt
           set +o pipefail
       - name: Add ETISS Tests Build Summary (Failure)
-        if: steps.etiss-build-riscv-tests.outcome != 'success'
+        if: ${{ steps.etiss-build-riscv-tests.outcome != 'success' }}
         run: |
           echo "### ETISS Build RISC-V Tests Status" >> $GITHUB_STEP_SUMMARY
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
@@ -386,6 +683,82 @@ jobs:
           # echo "```" >> $GITHUB_STEP_SUMMARY
           # echo >> $GITHUB_STEP_SUMMARY
           exit 1
+      - name: Upload Prebuilt Tests
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}-${{ matrix.config.XLEN }}
+          path: riscv-tests/isa
+  run_tests:
+    outputs:
+      output1: ${{ steps.step1.outputs.test }}
+      output2: ${{ steps.step2.outputs.test }}
+    needs: [check, setup_tests, setup_etiss]
+    strategy:
+      fail-fast: false
+      # fail-fast: true
+      matrix:
+        ubuntu-version: [22.04]
+        python-version: ['3.10']
+        jit:
+          - TCC
+          - GCC
+        config:
+          # Multilib GCC is missing rv32imacfd build!
+          # - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac, ETISS_ARCH: "RV32IMACFD", ETISS_BASE_ARCH: "RV32IMACFD", ABI: ilp32, XLEN: 32}
+          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imac_zicsr_zifencei, ETISS_ARCH: RV32IMACFD,
+             ETISS_BASE_ARCH: RV32IMACFD, ABI: ilp32, XLEN: 32, TEST_EXTS: imacfd}
+          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imafc, ETISS_ARCH: RV32IMACFD,
+             ETISS_BASE_ARCH: RV32IMACFD, ABI: ilp32f, XLEN: 32, TEST_EXTS: imacf}  # rv32gc not supported by multilib gcc
+          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: RV64IMACFD,
+             ETISS_BASE_ARCH: RV64IMACFD, ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
+    # TODO: commit etiss changes? -> Generate patch file?
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install APT dependencies
+        run: |
+          sudo apt update
+          sudo apt -qq install -y python3-pip python3-venv cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Clone Repo and Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
+        with:
+          name: refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        run: |
+          git apply update_refs.patch
+          rm update_refs.patch
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
+      - name: Download Prebuilt Tests
+        uses: actions/download-artifact@v5
+        with:
+          name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}-${{ matrix.config.XLEN }}
+          path: riscv-tests/isa
+      - name: Download Prebuilt ETISS
+        uses: actions/download-artifact@v4
+        with:
+          name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
+            }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
+            }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}
+          path: etiss/build/install
       - name: Run ETISS RISC-V Tests
         id: etiss-run-riscv-tests
         run: |
@@ -394,6 +767,7 @@ jobs:
           source venv/bin/activate
           pip install -r requirements.txt
           cd ..
+          chmod +x etiss/build/install/bin/bare_etiss_processor
           python etiss_riscv_tests/test.py --arch ${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit $(echo ${{ matrix.jit }} | tr '[:upper:]' '[:lower:]') --runlevel msu --keep-output both riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
       - name: Add ETISS RISC-V Test Results Summary
         # if: steps.etiss-run-riscv-tests.outcome != 'success'
@@ -420,17 +794,11 @@ jobs:
             }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
             matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
           path: results_*
-      - name: Add Overall Summary (only on success)
-        if: success()
-        run: |
-          echo "### Final Status" >> $GITHUB_STEP_SUMMARY
-          echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
       - name: Cleanup
         if: success()
         run: rm -f *_out.txt results_* || true
   finalize:
-    needs: [flow]
+    needs: [check, run_examples, run_tests]
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -446,53 +814,21 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Add Summary Header
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
+        with:
+          name: refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
-          echo "### Summary" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-      - name: Update Summary (Trigger)
+          git apply update_refs.patch
+          rm update_refs.patch
+      - name: Update Submodules
         run: |
-          echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-      - name: Update CDSL ref
-        if: github.event.client_payload.from == 'cdsl' && success()
-        run: |
-          git -C etiss_arch_riscv checkout ${{ github.event.client_payload.ref }}
-          git -C etiss_arch_riscv submodule update --init --recursive
-          git add etiss_arch_riscv
-          echo "Updated Ref: etiss_arch_riscv -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-      - name: Update M2-ISA-R ref
-        # if: github.event.event_type == 'm2isar-event'
-        if: github.event.client_payload.from == 'm2isar' && success()
-        run: |
-          git -C M2-ISA-R fetch
-          git -C M2-ISA-R branch -a
-          git -C M2-ISA-R checkout ${{ github.event.client_payload.ref }}
-          git add M2-ISA-R
-          echo "Updated Ref: M2-ISA-R -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-      - name: Update Examples ref
-        if: github.event.client_payload.from == 'examples' && success()
-        run: |
-          git -C etiss_riscv_examples checkout ${{ github.event.client_payload.ref }}
-          git -C etiss_riscv_examples submodule update --init --recursive
-          git add etiss_riscv_examples
-          echo "Updated Ref: etiss_riscv_examples -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-      - name: Update ETISS ref
-        # if: github.event.event_type == 'etiss-event'
-        if: github.event.client_payload.from == 'etiss' && success()
-        run: |
-          git -C etiss checkout ${{ github.event.client_payload.ref }}
-          git add etiss
-          echo "Updated Ref: etiss -> ${{ github.event.client_payload.ref }}" >> $GITHUB_STEP_SUMMARY
-      - name: Add and count changed files
-        id: count_files
-        working-directory: ./
-        run: |
-          NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
-          echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
+          git submodule update --init --recursive
       - name: Check if PR Branch already exists
-        if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         env:
           GH_TOKEN: ${{ github.token }}
         id: check_branch
@@ -509,8 +845,7 @@ jobs:
             echo "PR_EXISTS=0" >> $GITHUB_OUTPUT
           fi
       - name: Switch to PR Branch
-        if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
-          != '0' && success()
+        if: ${{ steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && needs.check.outputs.num_changed != '0' && success() }}
         run: |
           git remote set-url origin https://x-access-token:${{ secrets.github_key }}@github.com/$GITHUB_REPOSITORY
           # git fetch --all
@@ -521,26 +856,12 @@ jobs:
           git branch -d -r origin/pr_update_${{ github.event.client_payload.from }}
           git checkout -b pr_update_${{ github.event.client_payload.from }}
           # git stash pop
-
-    # - name: Create PR Branch
-    #   if: steps.check_branch.outputs.BRANCH_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0'
-    #   run: |
-    #     git checkout -b pr_update_${{ github.event.client_payload.from }}
       - name: Commit Refs to PR branch
-        if: steps.count_files.outputs.NUM_CHANGED != '0' && success()
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
           git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
-      - name: Get Refs
-        if: success()
-        id: refs
-        run: |
-          echo "etiss_ref=$(git -C etiss rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "etiss_riscv_tests_ref=$(git -C etiss_riscv_tests rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
       - name: Push changes to PR branch
-        if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
+        if: ${{ steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && needs.check.outputs.num_changed }}
           != '0' && success() && github.event.client_payload.is_pr != 'true'
         uses: ad-m/github-push-action@master
         with:
@@ -548,13 +869,13 @@ jobs:
           force: true
           github_token: ${{ github.token }}
       - name: Fetch all branches
-        if: steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED
+        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED }}
           != '0' && success() && github.event.client_payload.is_pr != 'true'
         run: |
           git fetch --all
           # git checkout -b temp
       - name: Create Pull Request
-        if: steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED
+        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED }}
           != '0' && success() && github.event.client_payload.is_pr != 'true'
         uses: peter-evans/create-pull-request@v7
         with:
@@ -565,8 +886,8 @@ jobs:
           # base: main
 
   stats:
-    if: github.event_name == 'push'
-    needs: [flow]
+    if: ${{ github.event_name == 'push' }}
+    needs: [run_examples]
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
@@ -608,7 +929,7 @@ jobs:
           # force: true
   publish:
     if: ${{ github.event.client_payload.is_pr != 'true' && github.event.client_payload.from == '' }}
-    needs: [flow,finalize]
+    needs: [setup_etiss, finalize]
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -632,7 +953,7 @@ jobs:
           ls artifacts/etiss-patch-*/etiss.patch && PATCH_EXISTS=1 || PATCH_EXISTS=0
           echo "PATCH_EXISTS=$PATCH_EXISTS" >> $GITHUB_OUTPUT
       - name: Clone ETISS
-        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
         uses: actions/checkout@v4
         with:
           repository: tum-ei-eda/etiss
@@ -666,7 +987,7 @@ jobs:
           git checkout -b ${{ env.ETISS_BRANCH_NAME }} origin/master
           cd -
       - name: Apply Patches
-        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
         run: |
           cd etiss
           for file in ../artifacts/etiss-patch-*/etiss.patch; do
@@ -681,10 +1002,10 @@ jobs:
         id: check_diff
         run: |
           cd etiss
-          diff_out=$(git diff -w -I"Generated on" master)
+          diff_out=$(git diff -w --ignore-blank-lines -I"Generated on" master)
           echo exit_code=$?
           echo "diff_out=$diff_out"
-          length=$(cat $diff_out | wc -l)
+          length=$(echo -n $diff_out | wc -l)
           echo
           if [[ "$length" == "0" ]]; then
             echo "Diff is empty"
@@ -711,7 +1032,7 @@ jobs:
           directory: etiss
           repository: tum-ei-eda/etiss
       - name: Fetch all branches
-        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
         run: |
           cd etiss
           git fetch --all
