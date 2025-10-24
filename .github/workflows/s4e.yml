@@ -480,6 +480,7 @@ jobs:
           path: llvm_fork
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
       - name: Check tag existance
+        if: steps.check_patch.outputs.PATCH_EXISTS != '0'
         id: check_tag
         run: |
           cd llvm_fork
