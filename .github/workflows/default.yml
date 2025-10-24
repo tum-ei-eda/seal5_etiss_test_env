@@ -1005,7 +1005,7 @@ jobs:
           diff_out=$(git diff -w --ignore-blank-lines -I"Generated on" master)
           echo exit_code=$?
           echo "diff_out=$diff_out"
-          length=$(echo $diff_out | wc -l)
+          length=$(echo -n $diff_out | wc -l)
           echo
           if [[ "$length" == "0" ]]; then
             echo "Diff is empty"
