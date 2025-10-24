@@ -1002,7 +1002,7 @@ jobs:
         id: check_diff
         run: |
           cd etiss
-          diff_out=$(git diff -w -I"Generated on" master)
+          diff_out=$(git diff -w --ignore-blank-lines -I"Generated on" master)
           echo exit_code=$?
           echo "diff_out=$diff_out"
           length=$(echo $diff_out | wc -l)
