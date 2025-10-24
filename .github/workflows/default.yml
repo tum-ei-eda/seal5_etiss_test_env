@@ -121,7 +121,7 @@ jobs:
           echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
-          git diff > update_refs.patch
+          git diff --staged > update_refs.patch
           echo >> $GITHUB_STEP_SUMMARY
           echo "Update Refs Patch:" >> $GITHUB_STEP_SUMMARY
           cat update_refs.patch >> $GITHUB_STEP_SUMMARY
