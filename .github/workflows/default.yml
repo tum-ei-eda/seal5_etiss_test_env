@@ -533,7 +533,7 @@ jobs:
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         uses: actions/download-artifact@v5
         with:
-          name: update_refs-patch
+          name: refs-patch
       - name: Apply Refs patch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
