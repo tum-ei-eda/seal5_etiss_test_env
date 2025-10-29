@@ -413,13 +413,6 @@ jobs:
       - name: Cleanup
         run: |
           rm out.txt
-          cd riscv-coredsl-extensions
-          git clean -f
-          git restore .
-          cd -
-          cd etiss
-          git clean -f
-          git restore .
           git -C etiss restore .
           git -C riscv-coredsl-extensions restore .
           git -C etiss clean -f
