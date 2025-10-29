@@ -121,6 +121,16 @@ jobs:
           echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
+      - name: Add and count changed files
+        id: count_files
+        working-directory: ./
+        run: |
+          NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
+          echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
+      - name: Create Patch
+        if: ${{ steps.count_files.outputs.NUM_CHANGED != '0' }}
+        working-directory: ./
+        run: |
           git add .
           git commit -m "Patch refs"
           git format-patch -1 HEAD --stdout > update_refs.patch
@@ -128,12 +138,6 @@ jobs:
           echo "Update Refs Patch:" >> $GITHUB_STEP_SUMMARY
           cat update_refs.patch >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
-      - name: Add and count changed files
-        id: count_files
-        working-directory: ./
-        run: |
-          NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
-          echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
       - name: Upload Refs Patch
         uses: actions/upload-artifact@v4
         with:
