@@ -869,22 +869,19 @@ jobs:
           git add .
           git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
       - name: Push changes to PR branch
-        if: ${{ steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && needs.check.outputs.num_changed }}
-          != '0' && success() && github.event.client_payload.is_pr != 'true'
+        if: ${{ steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && needs.check.outputs.num_changed != '0' && success() && github.event.client_payload.is_pr != 'true' }}
         uses: ad-m/github-push-action@master
         with:
           branch: pr_update_${{ github.event.client_payload.from }}
           force: true
           github_token: ${{ github.token }}
       - name: Fetch all branches
-        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED }}
-          != '0' && success() && github.event.client_payload.is_pr != 'true'
+        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0' && success() && github.event.client_payload.is_pr != 'true' }}
         run: |
           git fetch --all
           # git checkout -b temp
       - name: Create Pull Request
-        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED }}
-          != '0' && success() && github.event.client_payload.is_pr != 'true'
+        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.NUM_CHANGED != '0' && success() && github.event.client_payload.is_pr != 'true' }}
         uses: peter-evans/create-pull-request@v7
         with:
           commit-message: Auto-Update ${{ github.event.client_payload.from }} submodule
@@ -941,7 +938,7 @@ jobs:
     needs: [setup_etiss, finalize]
     runs-on: ubuntu-latest
     steps:
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
