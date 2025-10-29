@@ -38,6 +38,7 @@ env:
   ETISS_TOP: top
   PROGS: hello_world,dhry,tvm_vww,embench_crc32
   ETISS_BRANCH_NAME: auto_update_riscv_archlib
+  DEBIAN_FRONTEND: noninteractive
 permissions:
   contents: write
   actions: write

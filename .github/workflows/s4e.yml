@@ -54,6 +54,7 @@ env:
   LLVM_REF: llvmorg-19.1.7
   LLVM_FORK: tum-ei-eda/llvm-project
   LLVM_FORK_TAG: seal5_s4e_llvmorg-19.1.7
+  DEBIAN_FRONTEND: noninteractive
 jobs:
   flow:
     strategy:
