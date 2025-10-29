@@ -889,6 +889,7 @@ jobs:
             to ${{ github.event.client_payload.ref }}
           title: Auto-Update ${{ github.event.client_payload.from }} submodule
           branch: pr_update_${{ github.event.client_payload.from }}
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
           # base: main
 
   stats:
