@@ -121,7 +121,9 @@ jobs:
           echo "examples_ref=$(git -C etiss_riscv_examples rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "m2isar_ref=$(git -C M2-ISA-R rev-parse HEAD)" >> $GITHUB_OUTPUT
           echo "cdsl_ref=$(git -C etiss_arch_riscv rev-parse HEAD)" >> $GITHUB_OUTPUT
-          git diff --staged > update_refs.patch
+          git add .
+          git commit -m "Patch refs"
+          git format-patch -1 HEAD --stdout > update_refs.patch
           echo >> $GITHUB_STEP_SUMMARY
           echo "Update Refs Patch:" >> $GITHUB_STEP_SUMMARY
           cat update_refs.patch >> $GITHUB_STEP_SUMMARY
@@ -182,11 +184,11 @@ jobs:
       - name: Apply Refs patch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
-          git apply update_refs.patch
-          rm update_refs.patch
-      - name: Update Submodules
-        run: |
+          git am update_refs.patch
           git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
       - name: Cache ETISS Patch
         id: cache-etiss-patch
         uses: actions/cache@v4
@@ -276,11 +278,11 @@ jobs:
       - name: Apply Refs patch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
-          git apply update_refs.patch
-          rm update_refs.patch
-      - name: Update Submodules
-        run: |
+          git am update_refs.patch
           git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
       - name: Download Cached ETISS Binaries
         if: success()
         id: cache-etiss
@@ -375,11 +377,11 @@ jobs:
       - name: Apply Refs patch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
-          git apply update_refs.patch
-          rm update_refs.patch
-      - name: Update Submodules
-        run: |
+          git am update_refs.patch
           git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
       - name: Cache Examples
         if: success()
         id: cache-examples
@@ -537,11 +539,11 @@ jobs:
       - name: Apply Refs patch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
-          git apply update_refs.patch
-          rm update_refs.patch
-      - name: Update Submodules
-        run: |
+          git am update_refs.patch
           git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
       - name: Download Prebuilt Examples
         uses: actions/download-artifact@v5
         with:
@@ -656,11 +658,11 @@ jobs:
       - name: Apply Refs patch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
-          git apply update_refs.patch
-          rm update_refs.patch
-      - name: Update Submodules
-        run: |
+          git am update_refs.patch
           git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
       - name: Build ETISS RISC-V Tests
         id: etiss-build-riscv-tests
         run: |
@@ -740,11 +742,11 @@ jobs:
       - name: Apply Refs patch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
-          git apply update_refs.patch
-          rm update_refs.patch
-      - name: Update Submodules
-        run: |
+          git am update_refs.patch
           git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
       - name: Download Prebuilt Tests
         uses: actions/download-artifact@v5
         with:
@@ -822,11 +824,11 @@ jobs:
       - name: Apply Refs patch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
-          git apply update_refs.patch
-          rm update_refs.patch
-      - name: Update Submodules
-        run: |
+          git am update_refs.patch
           git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
       - name: Check if PR Branch already exists
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         env:
