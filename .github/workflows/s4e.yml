@@ -418,7 +418,6 @@ jobs:
           git -C riscv-coredsl-extensions restore .
           git -C etiss clean -f
           git -C riscv-coredsl-extensions clean -f
-          cd -
       - name: Push changes to PR branch
         if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
           != '0' && github.event.client_payload.is_pr != 'true'
