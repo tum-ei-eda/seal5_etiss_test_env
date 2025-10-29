@@ -865,6 +865,7 @@ jobs:
       - name: Commit Refs to PR branch
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
+          git add .
           git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
       - name: Push changes to PR branch
         if: ${{ steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && needs.check.outputs.num_changed }}
