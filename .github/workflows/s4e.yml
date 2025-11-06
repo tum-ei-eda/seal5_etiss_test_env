@@ -414,10 +414,19 @@ jobs:
       - name: Cleanup
         run: |
           rm out.txt
+          echo A
+          git -C etiss status
           git -C etiss restore .
+          git -C etiss clean -f -x -d
+          echo B
+          git -C etiss status
+          echo C
+          git -C riscv-coredsl-extensions status
           git -C riscv-coredsl-extensions restore .
-          git -C etiss clean -f
-          git -C riscv-coredsl-extensions clean -f
+          git -C riscv-coredsl-extensions clean -f -x -d
+          echo D
+          git -C riscv-coredsl-extensions status
+          echo E
       - name: Push changes to PR branch
         if: steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.count_files.outputs.NUM_CHANGED
           != '0' && github.event.client_payload.is_pr != 'true'
