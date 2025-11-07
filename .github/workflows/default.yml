@@ -304,6 +304,13 @@ jobs:
         run: |
           sudo apt update
           sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
+      - name: Setup ccache
+        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 2G
+          key: ccache-etiss-build-${{ env.BUILD_TYPE }}
+          variant: sccache
       - name: Build ETISS
         if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
         id: etiss-compile
@@ -313,7 +320,7 @@ jobs:
           cd etiss/PluginImpl
           ln -s ../../etiss_riscv_tests/FileLoggerPlugin .
           cd ../..
-          cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} 2>&1 | tee -a etiss_compile_out.txt
+          cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 2>&1 | tee -a etiss_compile_out.txt
           cmake --build etiss/build -j$(nproc) 2>&1 | tee -a etiss_compile_out.txt
           cmake --install etiss/build 2>&1 | tee -a etiss_compile_out.txt
           set +o pipefail
@@ -442,6 +449,13 @@ jobs:
           rm llvm.tar.xz
           ls llvm
           echo "LLVM Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
+      - name: Setup ccache
+        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          max-size: 2G
+          key: ccache-examples-build-rv${{ matrix.config.XLEN }}-${{ env.BUILD_TYPE }}
+          variant: sccache
       - name: Build Examples (LLVM)
         if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm' && success() }}
         id: etiss-build-sw-llvm
@@ -450,7 +464,7 @@ jobs:
           set -o pipefail
           cd etiss_riscv_examples
           export PATH=$(pwd)/../llvm/bin/:$PATH
-          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} 2>&1 | tee -a etiss_sw_build_out.txt
+          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 2>&1 | tee -a etiss_sw_build_out.txt
           for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
               cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
@@ -465,7 +479,7 @@ jobs:
           # TODO: also run GCC here!
           set -o pipefail
           cd etiss_riscv_examples
-          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} 2>&1 | tee -a etiss_sw_build_out.txt
+          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 2>&1 | tee -a etiss_sw_build_out.txt
           for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
               echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
               cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
