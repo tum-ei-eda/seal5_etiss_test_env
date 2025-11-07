@@ -450,7 +450,7 @@ jobs:
           ls llvm
           echo "LLVM Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
       - name: Setup ccache
-        if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' }}
         uses: hendrikmuhs/ccache-action@v1
         with:
           max-size: 2G
