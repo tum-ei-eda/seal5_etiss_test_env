@@ -25,7 +25,7 @@ on:
   #     - riscv-tests  # TODO: add triggers
   #     - etiss_riscv_tests  # TODO: add triggers
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}-${{ github.event.client_payload }}
   cancel-in-progress: false
 env:
   BUILD_TYPE: Release
