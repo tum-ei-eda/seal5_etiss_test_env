@@ -303,7 +303,7 @@ jobs:
       - name: Install APT dependencies
         run: |
           sudo apt update
-          sudo apt remove -y llvm* clang* libllvm* libclang*
+          sudo apt remove -y llvm-* clang-* libllvm* libclang*
           sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev llvm-15-dev libclang-15-dev clang-15
       - name: Setup ccache
         if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
