@@ -790,6 +790,15 @@ jobs:
           pip install -r requirements.txt
           cd ..
           chmod +x etiss/build/install/bin/bare_etiss_processor
+          echo A
+          ls -l .
+          echo B
+          ls -l riscv-tests/
+          echo C
+          ls -l riscv-tests/isa
+          echo D
+          ls -l etiss/build/install/bin/bare_etiss_processor
+          echo E
           python etiss_riscv_tests/test.py --arch ${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit $(echo ${{ matrix.jit }} | tr '[:upper:]' '[:lower:]') --runlevel msu --keep-output both riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
       - name: Add ETISS RISC-V Test Results Summary
         # if: steps.etiss-run-riscv-tests.outcome != 'success'
