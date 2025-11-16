@@ -137,7 +137,9 @@ jobs:
           git format-patch -1 HEAD --stdout > update_refs.patch
           echo >> $GITHUB_STEP_SUMMARY
           echo "Update Refs Patch:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cat update_refs.patch >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Upload Refs Patch
         uses: actions/upload-artifact@v4
@@ -332,10 +334,10 @@ jobs:
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           echo "**ETISS Compile Outputs:**" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cat etiss_compile_out.txt >> $GITHUB_STEP_SUMMARY
           # echo >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           # echo >> $GITHUB_STEP_SUMMARY
           exit 1
       - name: Upload ETISS Install
@@ -494,10 +496,10 @@ jobs:
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           echo "**ETISS SW Build Outputs:**" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cat etiss_riscv_examples/etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           # echo >> $GITHUB_STEP_SUMMARY
           exit 1
       - name: Upload Prebuilt Examples
@@ -606,10 +608,10 @@ jobs:
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           echo "**ETISS Sim Outputs:**" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cat etiss_sw_run_out.txt >> $GITHUB_STEP_SUMMARY
-          # echo >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           exit 1
       - name: Upload ETISS Outputs
@@ -634,10 +636,10 @@ jobs:
         if: ${{ steps.etiss-run-sw.outcome == 'success' }}
         run: |
           echo "### ETISS SW Run Metrics" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           egrep '(\-\-\- Program:|MIPS \(estimated\):|Simulation Time:|CPU Cycles \(estimated\):)' etiss_sw_run_out.txt >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
-          # echo >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
   setup_tests:
     outputs:
       output1: ${{ steps.step1.outputs.test }}
@@ -722,9 +724,9 @@ jobs:
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           echo "**Output:**" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           cat etiss_riscv_tests_build_out.txt >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           # echo >> $GITHUB_STEP_SUMMARY
           exit 1
       - name: Upload Prebuilt Tests
@@ -828,9 +830,9 @@ jobs:
           echo "### ETISS RISC-V Test Results" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           # echo "**Output:**" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          # echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           # cat etiss_riscv_tests_run_out.txt >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
+          # echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           # echo >> $GITHUB_STEP_SUMMARY
           cat results_*/pass.txt > pass.txt
           cat results_*/fail.txt > fail.txt
