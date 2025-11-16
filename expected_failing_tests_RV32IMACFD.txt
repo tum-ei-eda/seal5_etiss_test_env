@@ -1,0 +1,4 @@
+rv32mi-p-breakpoint: 2
+rv32mi-p-csr: 13
+rv32mi-p-illegal: 2
+rv32si-p-dirty: timeout

@@ -1,0 +1,5 @@
+rv64mi-p-breakpoint: 2
+rv64mi-p-csr: 13
+rv64mi-p-illegal: 2
+rv64si-p-dirty: timeout
+rv64si-p-icache-alias: 2

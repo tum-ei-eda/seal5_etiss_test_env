@@ -584,9 +584,7 @@ jobs:
         continue-on-error: true
         run: |
           ls
-          echo A
           ls etiss/build/install
-          echo B
           set -o pipefail
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           chmod +x etiss/build/install/bin/bare_etiss_processor
@@ -814,32 +812,7 @@ jobs:
           pip install -r requirements.txt
           cd ..
           chmod +x etiss/build/install/bin/bare_etiss_processor
-          echo A
-          ls -l .
-          echo B
-          ls -l riscv-tests/
-          echo C
-          ls -l riscv-tests/isa
-          echo D
-          ls -l etiss/build/install/bin/bare_etiss_processor
-          echo E
           python etiss_riscv_tests/test.py --arch ${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 10 --jit $(echo ${{ matrix.jit }} | tr '[:upper:]' '[:lower:]') --runlevel msu --keep-output both riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
-      - name: Add ETISS RISC-V Test Results Summary
-        # if: steps.etiss-run-riscv-tests.outcome != 'success'
-        run: |
-          echo "### ETISS RISC-V Test Results" >> $GITHUB_STEP_SUMMARY
-          # echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-          # echo "**Output:**" >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
-          # cat etiss_riscv_tests_run_out.txt >> $GITHUB_STEP_SUMMARY
-          # echo "```" >> $GITHUB_STEP_SUMMARY
-          # echo >> $GITHUB_STEP_SUMMARY
-          echo "**Results:**" >> $GITHUB_STEP_SUMMARY
-          # echo "Passing:" >> $GITHUB_STEP_SUMMARY
-          # cat results_*/pass.txt >> $GITHUB_STEP_SUMMARY
-          echo "Failing:" >> $GITHUB_STEP_SUMMARY
-          cat results_*/fail.txt >> $GITHUB_STEP_SUMMARY
       - name: Upload Test Artifacts
         # if: success() || failure()
         uses: actions/upload-artifact@v4
@@ -849,9 +822,66 @@ jobs:
             }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
             matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
           path: results_*
+      - name: Add ETISS RISC-V Test Results Summary
+        # if: steps.etiss-run-riscv-tests.outcome != 'success'
+        run: |
+          echo "### ETISS RISC-V Test Results" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          # echo "**Output:**" >> $GITHUB_STEP_SUMMARY
+          # echo "```" >> $GITHUB_STEP_SUMMARY
+          # cat etiss_riscv_tests_run_out.txt >> $GITHUB_STEP_SUMMARY
+          # echo "```" >> $GITHUB_STEP_SUMMARY
+          # echo >> $GITHUB_STEP_SUMMARY
+          cat results_*/pass.txt > pass.txt
+          cat results_*/fail.txt > fail.txt
+          if [[ -f expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt ]]
+          then
+              grep -v -f expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt fail.txt > fail_filtered.txt
+              NUM_EXPECTED_FAILING=$(wc -l fail_expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt)
+          else
+              cp fail.txt fail_filtered.txt
+              NUM_EXPECTED_FAILING=0
+          fi
+          NUM_TESTS=$(cat pass.txt fail.txt | wc -l)
+          NUM_PASSING=$(wc -l pass.txt)
+          NUM_FAILING=$(wc -l fail.txt)
+          NUM_FILTERED_FAILING=$(wc -l fail_filtered.txt)
+          echo "NUM_TESTS=$NUM_TESTS"
+          echo "NUM_PASSING=$NUM_PASSING"
+          echo "NUM_FAILING=$NUM_FAILING"
+          echo "NUM_EXPECTED_FAILING=$NUM_EXPECTED_FAILING"
+          echo "NUM_FILTERED_FAILING=$NUM_FILTERED_FAILING"
+          echo "**Results:**" >> $GITHUB_STEP_SUMMARY
+          echo "Passing: #$NUM_PASSING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
+          # cat pass.txt >> $GITHUB_STEP_SUMMARY
+          echo "..." >> $GITHUB_STEP_SUMMARY
+          echo "Failing: #$NUM_FAILING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
+          cat fail.txt >> $GITHUB_STEP_SUMMARY
+          echo "Failing (Expected): #$NUM_EXPECTED_FAILING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
+          cat expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt >> $GITHUB_STEP_SUMMARY
+          echo "Failing (Filtered): #$NUM_FILTERED_FAILING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
+          cat fail_filtered.txt >> $GITHUB_STEP_SUMMARY
+          if [[ "$NUM_TESTS" == "0" ]]
+          then
+              echo "No tests executed! Aborting..." >> $GITHUB_STEP_SUMMARY
+              echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+              exit 1
+          elif [[ "$NUM_FILTERED_FAILING" != "0" ]]
+          then
+              echo "$NUM_FILTERED_FAILING unexpected failing tests! Aborting..." >> $GITHUB_STEP_SUMMARY
+              echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+              exit 1
+          elif [[ "$NUM_FAILING" != "$NUM_EXPECTED_FAILING" ]]
+          then
+              echo "$NUM_FAILING test failed, but expected $NUM_EXPTECTED_FAILING! Aborting..." >> $GITHUB_STEP_SUMMARY
+              echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+              exit 1
+          else
+              echo "No unexpected failing tests! Continuing..." >> $GITHUB_STEP_SUMMARY
+          fi
       - name: Cleanup
         if: success()
-        run: rm -f *_out.txt results_* || true
+        run: rm -f *_out.txt results_* pass.txt fail.txt fail_filtered.txt || true
   finalize:
     needs: [check, run_examples, run_tests]
     runs-on: ubuntu-latest
