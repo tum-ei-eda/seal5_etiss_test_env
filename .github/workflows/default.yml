@@ -836,16 +836,18 @@ jobs:
           cat results_*/fail.txt > fail.txt
           if [[ -f expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt ]]
           then
-              grep -v -f expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt fail.txt > fail_filtered.txt
-              NUM_EXPECTED_FAILING=$(wc -l expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt)
+              echo "Found expected failing tests file."
+              (grep -v -f expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt fail.txt || true) > fail_filtered.txt
+              NUM_EXPECTED_FAILING=$(cat expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt | wc -l)
           else
+              echo "Expected failing tests file not found."
               cp fail.txt fail_filtered.txt
               NUM_EXPECTED_FAILING=0
           fi
           NUM_TESTS=$(cat pass.txt fail.txt | wc -l)
-          NUM_PASSING=$(wc -l pass.txt)
-          NUM_FAILING=$(wc -l fail.txt)
-          NUM_FILTERED_FAILING=$(wc -l fail_filtered.txt)
+          NUM_PASSING=$(cat pass.txt | wc -l)
+          NUM_FAILING=$(cat fail.txt | wc -l)
+          NUM_FILTERED_FAILING=$(cat fail_filtered.txt | wc -l)
           echo "NUM_TESTS=$NUM_TESTS"
           echo "NUM_PASSING=$NUM_PASSING"
           echo "NUM_FAILING=$NUM_FAILING"
@@ -855,12 +857,16 @@ jobs:
           echo "Passing: #$NUM_PASSING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
           # cat pass.txt >> $GITHUB_STEP_SUMMARY
           echo "..." >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
           echo "Failing: #$NUM_FAILING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
           cat fail.txt >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
           echo "Failing (Expected): #$NUM_EXPECTED_FAILING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
           cat expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
           echo "Failing (Filtered): #$NUM_FILTERED_FAILING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
           cat fail_filtered.txt >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
           if [[ "$NUM_TESTS" == "0" ]]
           then
               echo "No tests executed! Aborting..." >> $GITHUB_STEP_SUMMARY
