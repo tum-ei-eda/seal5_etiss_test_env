@@ -837,7 +837,7 @@ jobs:
           if [[ -f expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt ]]
           then
               grep -v -f expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt fail.txt > fail_filtered.txt
-              NUM_EXPECTED_FAILING=$(wc -l fail_expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt)
+              NUM_EXPECTED_FAILING=$(wc -l expected_failing_tests_${{ matrix.config.ETISS_ARCH }}.txt)
           else
               cp fail.txt fail_filtered.txt
               NUM_EXPECTED_FAILING=0
