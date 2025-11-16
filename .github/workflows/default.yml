@@ -683,6 +683,30 @@ jobs:
           git reset --soft HEAD~1
           git restore --staged .
           rm update_refs.patch
+      - name: Download Cached GCC Binaries
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && success() }}
+        id: cache-gcc
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-gcc-binaries
+        with:
+          path: gnu/  # TODO: move?
+          key: gcc-binaries-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_NAME
+            }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{ steps.date.outputs.date
+            }}
+          # restore-keys: |
+          #   gcc-binaries-${{ matrix.ubuntu-version }}-${{ env.TC_NAME}}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}
+      - name: Download RISCV-GNU-Toolchain
+        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && steps.cache-gcc.outputs.cache-hit != 'true' && success() }}
+        run: |
+          wget -q https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ env.TC_VERSION }}/${{ env.TC_NAME}}-${{ env.TC_OS }}-${{ matrix.ubuntu-version }}-${{ env.TC_VARIANT }}.tar.xz -O gnu.tar.xz
+          mkdir gnu
+          cd gnu
+          tar xf ../gnu.tar.xz
+          cd ..
+          rm gnu.tar.xz
+          ls gnu
+          echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
       - name: Build ETISS RISC-V Tests
         id: etiss-build-riscv-tests
         run: |
