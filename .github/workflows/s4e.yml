@@ -301,6 +301,7 @@ jobs:
           cd seal5/
           source venv/bin/activate
           export PYTHONPATH=$(pwd)
+          mkdir -p ${{ env.SEAL5_OUT_DIR }}
           OUT_DIR=${{ env.SEAL5_OUT_DIR }} DEMO_CDSL_DIR=$(pwd)/../riscv-coredsl-extensions DEST=${{ env.SEAL5_LLVM_DIR }} BUILD_CONFIG=${{ env.SEAL5_BUILD_CONFIG }} LLVM_REF=${{ env.LLVM_REF }} CCACHE=1 VERBOSE=0 PROGESS=1 CLONE_DEPTH=1 IGNORE_ERROR=1 TEST=1 INSTALL=1 EXPORT=1 python3 examples/s4e_demo.py
           cd ${{ env.SEAL5_LLVM_DIR }}
           XZ_OPT='-T0 -9' tar -cJf ${{ env.SEAL5_LLVM_DIR }}.tar.xz .
