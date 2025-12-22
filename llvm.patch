@@ -1719,7 +1719,7 @@ index d96fafbe6..9f1271201 100644
 +
 +// RISCV.td - riscv_td_includes - INSERTION_END
 diff --git a/llvm/lib/Target/RISCV/RISCVFeatures.td b/llvm/lib/Target/RISCV/RISCVFeatures.td
-index 3c868dbbf..853491125 100644
+index 3c868dbbf..565bc38f3 100644
 --- a/llvm/lib/Target/RISCV/RISCVFeatures.td
 +++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
 @@ -997,6 +997,11 @@ def HasStdExtSvinval : Predicate<"Subtarget->hasStdExtSvinval()">,
@@ -1727,7 +1727,7 @@ index 3c868dbbf..853491125 100644
                             "'Svinval' (Fine-Grained Address-Translation Cache Invalidation)">;
  
 +// RISCVFeatures.td - riscv_features - INSERTION_START
-+def FeatureStdExtXS4EMAC : RISCVExtension<"xs4emac", 1, 0, "'XS4EMAC' (X_S4E_MAC Extension)">;
++def FeatureStdExtXS4EMAC : RISCVExtension<"xs4emac", 1, 0, "'XS4EMAC' (X_S4E_MAC Extension)", []>;
 +def HasStdExtXS4EMAC : Predicate<"Subtarget->hasStdExtXS4EMAC()">, AssemblerPredicate<(any_of FeatureStdExtXS4EMAC), "'XS4EMAC' (X_S4E_MAC Extension)">;
 +// RISCVFeatures.td - riscv_features - INSERTION_END
 +
@@ -1825,7 +1825,7 @@ index 000000000..23d60fbbc
 +
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td
 new file mode 100644
-index 000000000..707d67549
+index 000000000..79266b72f
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td
 @@ -0,0 +1,40 @@
@@ -1841,7 +1841,7 @@ index 000000000..707d67549
 +    bits<5> rd;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -1871,7 +1871,7 @@ index 000000000..707d67549
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td
 new file mode 100644
-index 000000000..c6db62223
+index 000000000..d01ba5ce1
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td
 @@ -0,0 +1,40 @@
@@ -1887,7 +1887,7 @@ index 000000000..c6db62223
 +    bits<5> rd;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -1917,7 +1917,7 @@ index 000000000..c6db62223
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td
 new file mode 100644
-index 000000000..0608faa0d
+index 000000000..aee08ac24
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td
 @@ -0,0 +1,44 @@
@@ -1934,7 +1934,7 @@ index 000000000..0608faa0d
 +    bits<5> rs2;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -1967,7 +1967,7 @@ index 000000000..0608faa0d
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td
 new file mode 100644
-index 000000000..fb9880a82
+index 000000000..58f954fac
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td
 @@ -0,0 +1,44 @@
@@ -1984,7 +1984,7 @@ index 000000000..fb9880a82
 +    bits<5> rs2;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -2017,7 +2017,7 @@ index 000000000..fb9880a82
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td
 new file mode 100644
-index 000000000..ee4bda025
+index 000000000..7959c9544
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td
 @@ -0,0 +1,44 @@
@@ -2034,7 +2034,7 @@ index 000000000..ee4bda025
 +    bits<5> rs2;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -2067,7 +2067,7 @@ index 000000000..ee4bda025
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td
 new file mode 100644
-index 000000000..a4ea9aeb5
+index 000000000..62976ee84
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td
 @@ -0,0 +1,44 @@
@@ -2084,7 +2084,7 @@ index 000000000..a4ea9aeb5
 +    bits<5> rs2;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -2117,7 +2117,7 @@ index 000000000..a4ea9aeb5
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td
 new file mode 100644
-index 000000000..4e324966f
+index 000000000..59078b2a7
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td
 @@ -0,0 +1,39 @@
@@ -2132,7 +2132,7 @@ index 000000000..4e324966f
 +    // Operands
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -2160,6 +2160,19 @@ index 000000000..4e324966f
 +def RESET_ACC : RVInst_RESET_ACC<(outs ), (ins )>;
 +
 +}
+diff --git a/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-attrs.ll b/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-attrs.ll
+new file mode 100644
+index 000000000..423df2c5d
+--- /dev/null
++++ b/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-attrs.ll
+@@ -0,0 +1,7 @@
++; RUN: llc -mtriple=riscv32 -mattr=+xs4emac %s -o - | FileCheck --check-prefix CHECK-XS4EMAC %s
++
++define void @test() {
++; CHECK-XS4EMAC: .attribute 5, "rv32i2p1_xs4emac1p0"
++  ret void
++}
++
 diff --git a/llvm/tools/pattern-gen/CMakeLists.txt b/llvm/tools/pattern-gen/CMakeLists.txt
 new file mode 100644
 index 000000000..823362651
