@@ -199,10 +199,10 @@ index efcc40641..1d6e63d4b 100644
  }
 diff --git a/llvm/lib/CodeGen/GlobalISel/PatternGen.cpp b/llvm/lib/CodeGen/GlobalISel/PatternGen.cpp
 new file mode 100644
-index 000000000..2eb97b071
+index 000000000..1c5897cf7
 --- /dev/null
 +++ b/llvm/lib/CodeGen/GlobalISel/PatternGen.cpp
-@@ -0,0 +1,1461 @@
+@@ -0,0 +1,1492 @@
 +//===- llvm/CodeGen/GlobalISel/PatternGen.cpp - PatternGen ---==//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -415,8 +415,10 @@ index 000000000..2eb97b071
 +  return "invalid";
 +}
 +
-+std::string makeImmTypeStr(int Size, bool Signed) {
-+  return (Signed ? "simm" : "uimm") + std::to_string(Size);
++std::string makeImmTypeStr(int Size, bool Signed, std::string llvm_type) {
++  if (llvm_type.empty())
++    return (Signed ? "simm" : "uimm") + std::to_string(Size);
++  return llvm_type;
 +}
 +
 +struct PatternNode {
@@ -828,13 +830,14 @@ index 000000000..2eb97b071
 +  StringRef Name;
 +  int Size;
 +  bool Sext;
++  std::string llvm_type;
 +
 +  size_t RegIdx;
 +
 +  RegisterNode(LLT Type, StringRef Name, size_t RegIdx, bool IsImm, int Size,
-+               bool Sext)
++               bool Sext, std::string llvm_type)
 +      : PatternNode(PN_Register, Type, IsImm), Name(Name), Size(Size),
-+        Sext(Sext), RegIdx(RegIdx) {}
++        Sext(Sext), llvm_type(llvm_type), RegIdx(RegIdx) {}
 +
 +  std::string patternString() override {
 +    std::string TypeStr = lltToString(Type);
@@ -842,8 +845,12 @@ index 000000000..2eb97b071
 +
 +    if (IsImm) {
 +      // Immediate Operands
-+      return ("(" + RegT + " ") + (Sext ? "simm" : "uimm") +
-+             std::to_string(Size) + ":$" + std::string(Name) + ")";
++      std::string pre;
++      if (llvm_type.empty())
++        pre = (Sext ? "simm" : "uimm") + std::to_string(Size);
++      else
++        pre = llvm_type;
++      return ("(" + RegT + " ") + pre + ":$" + std::string(Name) + ")";
 +    }
 +
 +    // Vector Types (currently rv32 only)
@@ -1142,8 +1149,28 @@ index 000000000..2eb97b071
 +    ReadOffset = Offset->getOperand(1).getCImm()->getLimitedValue();
 +  }
 +  if (AddrI->getOpcode() == TargetOpcode::G_SELECT) {
-+    // TODO: implement this!
-+    return pError(FORMAT_LOAD, AddrI);
++    assert(AddrI->getOperand(1).isReg() && "expected register");
++    auto CondInstr  = AddrI->getOperand(1);
++    auto CondReg  = CondInstr.getReg();
++    auto [ErrCond, CondNode] = traverse(MRI, *MRI.getVRegDef(CondReg));
++    if (ErrCond)
++      return PError(ErrCond);
++    assert(AddrI->getOperand(2).isReg() && "expected register");
++    auto TrueInstr  = AddrI->getOperand(2);
++    auto TrueReg  = TrueInstr.getReg();
++    auto [ErrTrue, TrueNode] = traverseRegLoad(MRI, Cur, ReadSize, MRI.getVRegDef(TrueReg));
++    if (ErrTrue)
++      return PError(ErrTrue);
++    assert(AddrI->getOperand(3).isReg() && "expected register");
++    auto FalseInstr  = AddrI->getOperand(3);
++    auto FalseReg  = FalseInstr.getReg();
++    auto [ErrFalse, FalseNode] = traverseRegLoad(MRI, Cur, ReadSize, MRI.getVRegDef(FalseReg));
++    if (ErrFalse)
++      return PError(ErrFalse);
++    auto Node = std::make_unique<TernopNode>(
++        MRI.getType(Cur.getOperand(0).getReg()), AddrI->getOpcode(),
++        std::move(CondNode), std::move(TrueNode), std::move(FalseNode));
++    return PPattern(std::move(Node));
 +  }
 +  if (AddrI->getOpcode() != TargetOpcode::COPY)
 +    return pError(FORMAT_LOAD, AddrI);
@@ -1164,7 +1191,7 @@ index 000000000..2eb97b071
 +
 +  assert(Cur.getOperand(0).isReg() && "expected register");
 +  std::unique_ptr<PatternNode> Node = std::make_unique<RegisterNode>(
-+      Type, Field->ident, Idx, false, Type.getSizeInBits(), false);
++      Type, Field->ident, Idx, false, Type.getSizeInBits(), false, Field->llvm_type);
 +
 +  bool SizeMismatch = (int)Type.getSizeInBits() != ReadSize;
 +
@@ -1347,7 +1374,7 @@ index 000000000..2eb97b071
 +      PatternArgs[Idx].In = true;
 +      PatternArgs[Idx].Llt = LLT();
 +      PatternArgs[Idx].ArgTypeStr =
-+          makeImmTypeStr(Field->len, Field->type & CDSLInstr::SIGNED);
++          makeImmTypeStr(Field->len, Field->type & CDSLInstr::SIGNED, Field->llvm_type);
 +
 +      if (Field == nullptr)
 +        return std::make_pair(FORMAT_IMM, nullptr);
@@ -1356,7 +1383,7 @@ index 000000000..2eb97b071
 +      return std::make_pair(
 +          SUCCESS, std::make_unique<RegisterNode>(
 +                       MRI.getType(Cur.getOperand(0).getReg()), Field->ident,
-+                       Idx, true, Field->len, Field->type & CDSLInstr::SIGNED));
++                       Idx, true, Field->len, Field->type & CDSLInstr::SIGNED, Field->llvm_type));
 +    }
 +
 +    // Else COPY is just a pass-through.
@@ -1537,6 +1564,10 @@ index 000000000..2eb97b071
 +  MayLoad = 0;
 +  MayStore = 0;
 +
++  if (PatternGenArgs::Args.DumpMIR) {
++    LLVM_DEBUG(MF.dump());
++  }
++
 +  std::string InstName = MF.getName().str().substr(4);
 +  std::string InstNameO = InstName;
 +  ++PatternGenNumInstructionsProcessed;
@@ -1677,6 +1708,29 @@ index a288e7d88..0cf879f7f 100644
  
    bool isUImm8GE32() const {
      int64_t Imm;
+diff --git a/llvm/lib/Target/RISCV/Disassembler/RISCVDisassembler.cpp b/llvm/lib/Target/RISCV/Disassembler/RISCVDisassembler.cpp
+index 23897e2d9..7dba558b6 100644
+--- a/llvm/lib/Target/RISCV/Disassembler/RISCVDisassembler.cpp
++++ b/llvm/lib/Target/RISCV/Disassembler/RISCVDisassembler.cpp
+@@ -620,6 +620,9 @@ DecodeStatus RISCVDisassembler::getInstruction32(MCInst &MI, uint64_t &Size,
+                         "CORE-V SIMD extensions custom opcode table");
+   TRY_TO_DECODE_FEATURE(RISCV::FeatureVendorXCVbi, DecoderTableXCVbi32,
+                         "CORE-V Immediate Branching custom opcode table");
++// RISCVDisassembler.cpp - riscv_disass_decode_feature_32 - INSERTION_START
++TRY_TO_DECODE_FEATURE(RISCV::FeatureStdExtXS4EMAC, DecoderTableX_S4E_MAC32,"X_S4E_MAC Extension opcode table");
++// RISCVDisassembler.cpp - riscv_disass_decode_feature_32 - INSERTION_END
+   TRY_TO_DECODE(true, DecoderTable32, "RISCV32 table");
+ 
+   return MCDisassembler::Fail;
+@@ -649,6 +652,8 @@ DecodeStatus RISCVDisassembler::getInstruction16(MCInst &MI, uint64_t &Size,
+   TRY_TO_DECODE_AND_ADD_SP(STI.hasFeature(RISCV::FeatureVendorXwchc),
+                            DecoderTableXwchc16,
+                            "WCH QingKe XW custom opcode table");
++// RISCVDisassembler.cpp - riscv_disass_decode_feature_16 - INSERTION_START
++// RISCVDisassembler.cpp - riscv_disass_decode_feature_16 - INSERTION_END
+   TRY_TO_DECODE_AND_ADD_SP(true, DecoderTable16,
+                            "RISCV_C table (16-bit Instruction)");
+ 
 diff --git a/llvm/lib/Target/RISCV/GISel/RISCVLegalizerInfo.cpp b/llvm/lib/Target/RISCV/GISel/RISCVLegalizerInfo.cpp
 index f033ea725..886085d37 100644
 --- a/llvm/lib/Target/RISCV/GISel/RISCVLegalizerInfo.cpp
@@ -1719,7 +1773,7 @@ index d96fafbe6..9f1271201 100644
 +
 +// RISCV.td - riscv_td_includes - INSERTION_END
 diff --git a/llvm/lib/Target/RISCV/RISCVFeatures.td b/llvm/lib/Target/RISCV/RISCVFeatures.td
-index 3c868dbbf..853491125 100644
+index 3c868dbbf..565bc38f3 100644
 --- a/llvm/lib/Target/RISCV/RISCVFeatures.td
 +++ b/llvm/lib/Target/RISCV/RISCVFeatures.td
 @@ -997,6 +997,11 @@ def HasStdExtSvinval : Predicate<"Subtarget->hasStdExtSvinval()">,
@@ -1727,7 +1781,7 @@ index 3c868dbbf..853491125 100644
                             "'Svinval' (Fine-Grained Address-Translation Cache Invalidation)">;
  
 +// RISCVFeatures.td - riscv_features - INSERTION_START
-+def FeatureStdExtXS4EMAC : RISCVExtension<"xs4emac", 1, 0, "'XS4EMAC' (X_S4E_MAC Extension)">;
++def FeatureStdExtXS4EMAC : RISCVExtension<"xs4emac", 1, 0, "'XS4EMAC' (X_S4E_MAC Extension)", []>;
 +def HasStdExtXS4EMAC : Predicate<"Subtarget->hasStdExtXS4EMAC()">, AssemblerPredicate<(any_of FeatureStdExtXS4EMAC), "'XS4EMAC' (X_S4E_MAC Extension)">;
 +// RISCVFeatures.td - riscv_features - INSERTION_END
 +
@@ -1825,14 +1879,15 @@ index 000000000..23d60fbbc
 +
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td
 new file mode 100644
-index 000000000..707d67549
+index 000000000..fe7b53d4b
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_HIInstrInfo.td
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,41 @@
 +let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
 +class RVInst_GET_ACC_HI<dag outs, dag ins> : Instruction, Sched<[]> {
 +    // General
 +    let Namespace = "RISCV";
++    let DecoderNamespace = "X_S4E_MAC";
 +    let Size = 4;
 +    bits<32> SoftFail = 0;
 +    bits<32> Inst;
@@ -1841,7 +1896,7 @@ index 000000000..707d67549
 +    bits<5> rd;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -1871,14 +1926,15 @@ index 000000000..707d67549
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td
 new file mode 100644
-index 000000000..c6db62223
+index 000000000..9aa114227
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/GET_ACC_LOInstrInfo.td
-@@ -0,0 +1,40 @@
+@@ -0,0 +1,41 @@
 +let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
 +class RVInst_GET_ACC_LO<dag outs, dag ins> : Instruction, Sched<[]> {
 +    // General
 +    let Namespace = "RISCV";
++    let DecoderNamespace = "X_S4E_MAC";
 +    let Size = 4;
 +    bits<32> SoftFail = 0;
 +    bits<32> Inst;
@@ -1887,7 +1943,7 @@ index 000000000..c6db62223
 +    bits<5> rd;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -1917,14 +1973,15 @@ index 000000000..c6db62223
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td
 new file mode 100644
-index 000000000..0608faa0d
+index 000000000..0542d1d01
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_32InstrInfo.td
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,45 @@
 +let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
 +class RVInst_MACS_32<dag outs, dag ins> : Instruction, Sched<[]> {
 +    // General
 +    let Namespace = "RISCV";
++    let DecoderNamespace = "X_S4E_MAC";
 +    let Size = 4;
 +    bits<32> SoftFail = 0;
 +    bits<32> Inst;
@@ -1934,7 +1991,7 @@ index 000000000..0608faa0d
 +    bits<5> rs2;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -1967,14 +2024,15 @@ index 000000000..0608faa0d
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td
 new file mode 100644
-index 000000000..fb9880a82
+index 000000000..1a907c2ed
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACS_64InstrInfo.td
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,45 @@
 +let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
 +class RVInst_MACS_64<dag outs, dag ins> : Instruction, Sched<[]> {
 +    // General
 +    let Namespace = "RISCV";
++    let DecoderNamespace = "X_S4E_MAC";
 +    let Size = 4;
 +    bits<32> SoftFail = 0;
 +    bits<32> Inst;
@@ -1984,7 +2042,7 @@ index 000000000..fb9880a82
 +    bits<5> rs2;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -2017,14 +2075,15 @@ index 000000000..fb9880a82
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td
 new file mode 100644
-index 000000000..ee4bda025
+index 000000000..cd2bddfd3
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_32InstrInfo.td
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,45 @@
 +let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
 +class RVInst_MACU_32<dag outs, dag ins> : Instruction, Sched<[]> {
 +    // General
 +    let Namespace = "RISCV";
++    let DecoderNamespace = "X_S4E_MAC";
 +    let Size = 4;
 +    bits<32> SoftFail = 0;
 +    bits<32> Inst;
@@ -2034,7 +2093,7 @@ index 000000000..ee4bda025
 +    bits<5> rs2;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -2067,14 +2126,15 @@ index 000000000..ee4bda025
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td
 new file mode 100644
-index 000000000..a4ea9aeb5
+index 000000000..188bd5558
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/MACU_64InstrInfo.td
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,45 @@
 +let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
 +class RVInst_MACU_64<dag outs, dag ins> : Instruction, Sched<[]> {
 +    // General
 +    let Namespace = "RISCV";
++    let DecoderNamespace = "X_S4E_MAC";
 +    let Size = 4;
 +    bits<32> SoftFail = 0;
 +    bits<32> Inst;
@@ -2084,7 +2144,7 @@ index 000000000..a4ea9aeb5
 +    bits<5> rs2;
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -2117,14 +2177,15 @@ index 000000000..a4ea9aeb5
 +}
 diff --git a/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td
 new file mode 100644
-index 000000000..4e324966f
+index 000000000..3c4ed6ae0
 --- /dev/null
 +++ b/llvm/lib/Target/RISCV/seal5/X_S4E_MAC/RESET_ACCInstrInfo.td
-@@ -0,0 +1,39 @@
+@@ -0,0 +1,40 @@
 +let Predicates = [HasStdExtXS4EMAC, IsRV32] in {
 +class RVInst_RESET_ACC<dag outs, dag ins> : Instruction, Sched<[]> {
 +    // General
 +    let Namespace = "RISCV";
++    let DecoderNamespace = "X_S4E_MAC";
 +    let Size = 4;
 +    bits<32> SoftFail = 0;
 +    bits<32> Inst;
@@ -2132,7 +2193,7 @@ index 000000000..4e324966f
 +    // Operands
 +
 +    // Attributes
-+    let hasSideEffects = 0;
++    let hasSideEffects = 1;
 +    let mayLoad = 0;
 +    let mayStore = 0;
 +    let isTerminator = 0;
@@ -2160,12 +2221,35 @@ index 000000000..4e324966f
 +def RESET_ACC : RVInst_RESET_ACC<(outs ), (ins )>;
 +
 +}
+diff --git a/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-attrs.ll b/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-attrs.ll
+new file mode 100644
+index 000000000..423df2c5d
+--- /dev/null
++++ b/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-attrs.ll
+@@ -0,0 +1,7 @@
++; RUN: llc -mtriple=riscv32 -mattr=+xs4emac %s -o - | FileCheck --check-prefix CHECK-XS4EMAC %s
++
++define void @test() {
++; CHECK-XS4EMAC: .attribute 5, "rv32i2p1_xs4emac1p0"
++  ret void
++}
++
+diff --git a/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-ext.c b/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-ext.c
+new file mode 100644
+index 000000000..ba8e96662
+--- /dev/null
++++ b/llvm/test/CodeGen/RISCV/seal5/generated/xs4emac.test-ext.c
+@@ -0,0 +1,4 @@
++; RUN: clang --print-supported-extensions | FileCheck --check-prefix CHECK %s
++
++; CHECK: xs4emac{{.*}}1.0 'XS4EMAC' (X_S4E_MAC Extension)
++
 diff --git a/llvm/tools/pattern-gen/CMakeLists.txt b/llvm/tools/pattern-gen/CMakeLists.txt
 new file mode 100644
-index 000000000..823362651
+index 000000000..f1f0ac89d
 --- /dev/null
 +++ b/llvm/tools/pattern-gen/CMakeLists.txt
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,43 @@
 +set(LLVM_LINK_COMPONENTS
 +  AllTargetsAsmParsers
 +  AllTargetsCodeGens
@@ -2188,6 +2272,8 @@ index 000000000..823362651
 +  TransformUtils
 +  Vectorize
 +  Passes
++  RISCVCodeGen
++  RISCVDesc
 +  )
 +
 +include_directories(../../lib/Target/RISCV)
@@ -2810,10 +2896,10 @@ index 000000000..93b74d159
 +
 diff --git a/llvm/tools/pattern-gen/Main.cpp b/llvm/tools/pattern-gen/Main.cpp
 new file mode 100644
-index 000000000..dd062cf37
+index 000000000..75c7cf939
 --- /dev/null
 +++ b/llvm/tools/pattern-gen/Main.cpp
-@@ -0,0 +1,185 @@
+@@ -0,0 +1,183 @@
 +#include <cstdio>
 +#include <ctype.h>
 +#include <exception>
@@ -2870,6 +2956,8 @@ index 000000000..dd062cf37
 +                                cl::desc("Skip verification step."),
 +                                cl::cat(ToolOptions));
 +static cl::opt<bool> PrintIR("print-ir", cl::desc("Print LLVM-IR module."),
++                             cl::cat(ToolOptions));
++static cl::opt<bool> PrintMIR("print-mir", cl::desc("Print LLVM-MIR functions."),
 +                             cl::cat(ToolOptions));
 +static cl::opt<bool> NoExtend(
 +    "no-extend",
@@ -2944,15 +3032,6 @@ index 000000000..dd062cf37
 +    auto Mod = std::make_unique<Module>("mod", Ctx);
 +    auto Instrs = ParseCoreDSL2(Ts, (XLen == 64), Mod.get(), NoExtend);
 +
-+    if (irOut) {
-+      std::string Str;
-+      raw_string_ostream OS(Str);
-+      OS << *Mod;
-+      OS.flush();
-+      irOut << Str << "\n";
-+      irOut.close();
-+    }
-+
 +    if (!SkipVerify)
 +      if (verifyModule(*Mod, &errs()))
 +        return -1;
@@ -2981,9 +3060,14 @@ index 000000000..dd062cf37
 +    PGArgsStruct Args{.Mattr = "",
 +                      .OptLevel = Opt,
 +                      .Predicates = Predicates,
-+                      .Is64Bit = (XLen == 64)};
++                      .Is64Bit = (XLen == 64),
++                      .DumpMIR = PrintMIR.getValue()};
 +
 +    optimizeBehavior(Mod.get(), Instrs, irOut, Args);
++
++    if (irOut)
++      irOut.close();
++
 +    if (PrintIR)
 +      llvm::outs() << *Mod << "\n";
 +    if (!SkipFmt)
@@ -3062,10 +3146,10 @@ index 000000000..79e6c6acc
 +
 diff --git a/llvm/tools/pattern-gen/PatternGen.hpp b/llvm/tools/pattern-gen/PatternGen.hpp
 new file mode 100644
-index 000000000..2353d00fd
+index 000000000..1f3026635
 --- /dev/null
 +++ b/llvm/tools/pattern-gen/PatternGen.hpp
-@@ -0,0 +1,18 @@
+@@ -0,0 +1,19 @@
 +#pragma once
 +#include "lib/InstrInfo.hpp"
 +#include "llvm/CodeGen/SelectionDAG.h"
@@ -3078,6 +3162,7 @@ index 000000000..2353d00fd
 +    llvm::CodeGenOptLevel OptLevel;
 +    std::string Predicates;
 +    bool Is64Bit;
++    bool DumpMIR;
 +};
 +
 +int optimizeBehavior(llvm::Module* M, std::vector<CDSLInstr> const& Instrs, std::ostream& OstreamIR, PGArgsStruct Args);
@@ -3135,10 +3220,10 @@ index 000000000..343dcbba9
 +
 diff --git a/llvm/tools/pattern-gen/lib/InstrInfo.hpp b/llvm/tools/pattern-gen/lib/InstrInfo.hpp
 new file mode 100644
-index 000000000..13a1576a1
+index 000000000..8a937c78e
 --- /dev/null
 +++ b/llvm/tools/pattern-gen/lib/InstrInfo.hpp
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,56 @@
 +#pragma once
 +#include "llvm/ADT/SmallVector.h"
 +#include <cstdint>
@@ -3179,10 +3264,12 @@ index 000000000..13a1576a1
 +        std::string_view ident;
 +        uint32_t identIdx;
 +        FieldType type;
++        std::string llvm_type;
 +    };
 +
 +    uint8_t size;
 +    std::string name;
++    std::string llvm_instr;
 +    std::string mnemonic;
 +    std::string argString;
 +
@@ -3345,10 +3432,10 @@ index 000000000..a566c6d62
 +
 diff --git a/llvm/tools/pattern-gen/lib/Parser.cpp b/llvm/tools/pattern-gen/lib/Parser.cpp
 new file mode 100644
-index 000000000..8632bed22
+index 000000000..9f30601aa
 --- /dev/null
 +++ b/llvm/tools/pattern-gen/lib/Parser.cpp
-@@ -0,0 +1,1549 @@
+@@ -0,0 +1,1680 @@
 +#include "Parser.hpp"
 +#include "InstrInfo.hpp"
 +#include "Token.hpp"
@@ -3456,6 +3543,19 @@ index 000000000..8632bed22
 +
 +static void warning(const char *msg, TokenStream &ts) {
 +  fprintf(stderr, "%s:%i: warning: %s\n", ts.path.c_str(), ts.lineNumber, msg);
++}
++
++#include "llvm/ADT/Twine.h"
++
++static void __attribute__((noreturn))
++error(const llvm::Twine &msg, TokenStream &ts) {
++  std::string s = msg.str(); // materialize once
++  error(s.c_str(), ts);
++}
++
++static void warning(const llvm::Twine &msg, TokenStream &ts) {
++  std::string s = msg.str();
++  warning(s.c_str(), ts);
 +}
 +
 +static void __attribute__((noreturn)) syntax_error(TokenStream &ts) {
@@ -4158,6 +4258,17 @@ index 000000000..8632bed22
 +    if (t.ident.str == "X" || t.ident.str == "XW") {
 +      bool sizeIs32 = t.ident.str == "XW";
 +      pop_cur(ts, ABrOpen);
++      if (ts.Peek().type == IntLiteral) {  // Handle X[0]
++        auto idx = pop_cur(ts, IntLiteral);
++        pop_cur(ts, ABrClose);
++        if (idx.literal.value == 0)  // X[0] -> 0
++          return Value(
++              llvm::ConstantInt::get(llvm::Type::getIntNTy(ctx, sizeIs32 ? 32 : xlen),
++                                     0, true),
++              true);
++        else  // X[1],...
++          not_implemented(ts);
++      }
 +      auto ident = pop_cur(ts, Identifier).ident;
 +      pop_cur(ts, ABrClose);
 +
@@ -4520,64 +4631,168 @@ index 000000000..8632bed22
 +  pop_cur(ts, CBrClose);
 +}
 +
-+int ParseAttributes(TokenStream &ts) {
-+  using FieldType = CDSLInstr::FieldType;
++
++struct AttrValue {
++  enum Kind {
++    Bool,     // [[is_reg]]
++    Int,      // [[opcode=7'ha]]
++    String    // [[llvm_type="seal5_simm3"]]
++  } kind;
++
++  uint64_t intVal;
++  std::string strVal;
++
++  static AttrValue makeBool() { return {Bool, 0, {}}; }
++  static AttrValue makeInt(uint64_t v) { return {Int, v, {}}; }
++  static AttrValue makeString(std::string s) {
++    AttrValue v;
++    v.kind = String;
++    v.strVal = std::move(s);
++    return v;
++  }
++  static AttrValue makeString(std::string_view s) {
++    AttrValue a;
++    a.kind = String;
++    a.strVal.assign(s.data(), s.size()); // explicit copy
++    return a;
++  }
++};
++
++
++using AttrMap = llvm::StringMap<AttrValue>;
++AttrMap ParseAttributes(TokenStream &ts) {
++  // using FieldType = CDSLInstr::FieldType;
 +
 +  // Sign bit specifies whether to OR or AND the mask, so just do
 +  // ~MY_FIELD to unset myField.
-+  const static llvm::DenseMap<llvm::StringRef, std::pair<uint, bool>>
-+      attrMap = {{"is_unsigned", {~FieldType::SIGNED_REG, 0}},
-+                 {"is_signed", {FieldType::SIGNED_REG, 0}},
-+                 {"is_imm", {FieldType::IMM, 0}},
-+                 {"is_reg", {FieldType::REG, 0}},
-+                 {"in", {FieldType::IN, 0}},
-+                 {"out", {FieldType::OUT, 0}},
-+                 {"inout", {(FieldType::IN | FieldType::OUT), 0}},
-+                 {"is_32_bit", {FieldType::IS_32_BIT, 0}}};
++  // const static llvm::DenseMap<llvm::StringRef, std::pair<uint, bool>>
++  //     attrMap = {{"is_unsigned", {~FieldType::SIGNED_REG, 0}},
++  //                {"is_signed", {FieldType::SIGNED_REG, 0}},
++  //                {"is_imm", {FieldType::IMM, 0}},
++  //                {"is_reg", {FieldType::REG, 0}},
++  //                {"in", {FieldType::IN, 0}},
++  //                {"out", {FieldType::OUT, 0}},
++  //                {"inout", {(FieldType::IN | FieldType::OUT), 0}},
++  //                {"is_32_bit", {FieldType::IS_32_BIT, 0}}};
 +
-+  uint acc = 0;
++  // uint acc = 0;
++  AttrMap attrs;
 +  while (ts.Peek().type == ABrOpen) {
 +    for (int i = 0; i < 2; i++)
 +      pop_cur(ts, ABrOpen);
 +
-+    bool allowArg = true;
++    // bool allowArg = true;
 +
 +    auto ident = pop_cur(ts, Identifier).ident;
-+    std::string attrName = std::string{ident.str};
-+    std::transform(attrName.begin(), attrName.end(), attrName.begin(),
++    std::string name = std::string{ident.str};
++    std::transform(name.begin(), name.end(), name.begin(),
 +                 [](unsigned char c) { return std::tolower(c); });
-+    auto iter = attrMap.find(attrName);
-+    if (iter != attrMap.end()) {
-+      uint op = iter->getSecond().first;
-+      allowArg = iter->getSecond().second;
-+      if (op & (1UL << (std::numeric_limits<uint>::digits - 1)))
-+        acc &= op;
-+      else
-+        acc |= op;
-+    }
-+
++    AttrValue value = AttrValue::makeBool();
 +    if (pop_cur_if(ts, Assignment)) {
-+      if (!allowArg)
-+        error("attribute does not take an argument", ts);
-+      if (!llvm::find(std::array{Identifier, IntLiteral, StringLiteral},
-+                      ts.Pop().type))
-+        error("invalid attribute", ts);
++      auto tok = ts.Pop();
++      switch (tok.type) {
++      case IntLiteral:
++        value = AttrValue::makeInt(tok.literal.value);
++        break;
++      case StringLiteral:
++        value = AttrValue::makeString(tok.strLit.str);
++        break;
++      case Identifier:
++        value = AttrValue::makeString(tok.ident.str);
++        break;
++      default:
++        error("invalid attribute value", ts);
++      }
 +    }
++    attrs[name] = std::move(value);
++
++    // auto iter = attrMap.find(attrName);
++    // if (iter != attrMap.end()) {
++    //   uint op = iter->getSecond().first;
++    //   allowArg = iter->getSecond().second;
++    //   if (op & (1UL << (std::numeric_limits<uint>::digits - 1)))
++    //     acc &= op;
++    //   else
++    //     acc |= op;
++    // }
++
++    // if (pop_cur_if(ts, Assignment)) {
++    //   if (!allowArg)
++    //     error("attribute does not take an argument", ts);
++    //   if (!llvm::find(std::array{Identifier, IntLiteral, StringLiteral},
++    //                   ts.Pop().type))
++    //     error("invalid attribute", ts);
++    // }
 +
 +    for (int i = 0; i < 2; i++)
 +      pop_cur(ts, ABrClose);
 +  }
++  return attrs;
 +
-+  return (CDSLInstr::FieldType)acc;
++  // return (CDSLInstr::FieldType)acc;
 +}
 +
-+int ParseOperandAttributes(TokenStream &ts) {
-+  return ParseAttributes(ts);
++void ApplyOperandAttributes(const AttrMap &attrs, CDSLInstr::Field &op, TokenStream &ts) {
++  using FT = CDSLInstr::FieldType;
++
++  int type = op.type;
++  for (auto &kv : attrs) {
++    auto name = kv.first();
++    auto &val = kv.second;
++
++    if (name == "is_reg") {
++      type |= FT::REG;
++    } else if (name == "is_imm") {
++      type |= FT::IMM;
++    } else if (name == "in") {
++      type |= FT::IN;
++    } else if (name == "out") {
++      type |= FT::OUT;
++    } else if (name == "inout") {
++      type |= (FT::IN | FT::OUT);
++    } else if (name == "is_signed") {
++      type |= FT::SIGNED_REG;
++    } else if (name == "is_unsigned") {
++      type &= (~FT::SIGNED_REG);
++    } else if (name == "is_32_bit") {
++      type |= FT::IS_32_BIT;
++    } else if (name == "llvm_type") {
++      if (val.kind != AttrValue::String)
++        error("llvm_type must be a string", ts);
++      op.llvm_type = val.strVal;
++    // } else if (name == "reg_class") {
++    //   op.regClass = val.strVal;
++    } else {
++      warning("unknown operand attribute: " + name, ts);
++    }
++
++  }
++  op.type = (CDSLInstr::FieldType)type;
++}
++
++void ParseOperandAttributes(TokenStream &ts, CDSLInstr::Field &op) {
++  AttrMap attrs = ParseAttributes(ts);
++  ApplyOperandAttributes(attrs, op, ts);
++}
++
++void ApplyInstructionAttributes(const AttrMap &attrs, CDSLInstr &instr, TokenStream &ts) {
++  for (auto &kv : attrs) {
++    auto name = kv.first();
++    auto &val = kv.second;
++
++    if (name == "llvm_instr") {
++      if (val.kind != AttrValue::String)
++        error("llvm_instr must be a string", ts);
++      instr.llvm_instr = val.strVal;
++    } else {
++      warning("unknown instruction attribute: " + name, ts);
++    }
++  }
 +}
 +
 +void ParseInstructionAttributes(TokenStream &ts, CDSLInstr &instr) {
-+  // ignore attributes
-+  ParseAttributes(ts);
++  AttrMap attrs = ParseAttributes(ts);
++  ApplyInstructionAttributes(attrs, instr, ts);
 +}
 +
 +void ParseSetAttributes(TokenStream &ts) {
@@ -4593,14 +4808,17 @@ index 000000000..8632bed22
 +
 +  while (peek_is_type(ts)) {
 +    auto vd = ParseDefinition(ts);
-+    uint type = ParseOperandAttributes(ts) | CDSLInstr::FieldType::NON_CONST;
-+    type = (type & ~CDSLInstr::SIGNED) | (vd.sgn ? CDSLInstr::SIGNED : 0);
 +
-+    instr.fields.push_back(
-+        CDSLInstr::Field{.len = (uint8_t)vd.bitSize,
-+                         .ident = vd.ident,
-+                         .identIdx = vd.identIdx,
-+                         .type = (CDSLInstr::FieldType)type});
++    CDSLInstr::Field op = CDSLInstr::Field{.len = (uint8_t)vd.bitSize,
++                          .ident = vd.ident,
++                          .identIdx = vd.identIdx,
++                          .type = CDSLInstr::FieldType::NON_CONST};
++
++    ParseOperandAttributes(ts, op);
++
++    op.type = (CDSLInstr::FieldType)((op.type & ~CDSLInstr::SIGNED) | (vd.sgn ? CDSLInstr::SIGNED : 0));
++
++    instr.fields.push_back(op);
 +
 +    pop_cur(ts, Semicolon);
 +  }
