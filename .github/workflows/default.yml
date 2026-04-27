@@ -926,9 +926,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         id: check_branch
         run: |
+          echo "0: > git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }}"
+          echo "1: $(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }})"
+          echo "2: $(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)"
           CHECK_BRANCH=$(git ls-remote --heads origin pr_update_${{ github.event.client_payload.from }} | wc -l 2>&1)
+          echo "CHECK_BRANCH=$CHECK_BRANCH"
           echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT  # 1 if branch exists, 0 if not
+          echo "3: > gh pr list -B main -H pr_update_${{ github.event.client_payload.from }}"
           prs=$(gh pr list -B main -H pr_update_${{ github.event.client_payload.from }})
+          echo "4: prs=|||$prs|||"
           echo Size of PRS ARRAY: ${#prs[@]}
           echo Length of PRS[0] string: ${#prs[0]}
           if ((${#prs[@]} > 0 && ${#prs[0]} != 0 )); then
