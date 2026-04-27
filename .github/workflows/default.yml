@@ -968,12 +968,12 @@ jobs:
           force: true
           github_token: ${{ github.token }}
       - name: Fetch all branches
-        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.num_changed != '0' && success() && github.event.client_payload.is_pr != 'true' }}
+        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && needs.check.outputs.num_changed != '0' && success() && github.event.client_payload.is_pr != 'true' }}
         run: |
           git fetch --all
           # git checkout -b temp
       - name: Create Pull Request
-        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && steps.count_files.outputs.num_changed != '0' && success() && github.event.client_payload.is_pr != 'true' }}
+        if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && needs.check.outputs.num_changed != '0' && success() && github.event.client_payload.is_pr != 'true' }}
         uses: peter-evans/create-pull-request@v7
         with:
           commit-message: Auto-Update ${{ github.event.client_payload.from }} submodule
