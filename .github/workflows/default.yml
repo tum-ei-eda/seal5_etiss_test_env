@@ -36,6 +36,7 @@ env:
   TC_OS: ubuntu
   LLVM_VERSION: 19.1.1
   ETISS_TOP: top
+  ETISS_FILL_MODE: auto
   PROGS: hello_world,dhry,tvm_vww,embench_crc32
   ETISS_BRANCH_NAME: auto_update_riscv_archlib
   DEBIAN_FRONTEND: noninteractive
@@ -220,8 +221,8 @@ jobs:
           cd M2-ISA-R
           source venv/bin/activate
           # TODO: generalize
-          python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc
-          python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage
+          python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc --infer-types --validate
+          python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage --fill-mode $ETISS_FILL_MODE
       - name: Upload M2ISAR Model artifacts
         if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
         uses: actions/upload-artifact@v4
@@ -234,7 +235,10 @@ jobs:
         run: |
           cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/${{ matrix.config.ETISS_ARCH }}/ etiss/ArchImpl/  # TODO: generalize!
           cd etiss
-          git restore ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+          if [[ "$ETISS_FILL_MODE" == "empty" ]]
+          then
+              git restore ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
+          fi
           git diff > ${{ github.workspace }}/etiss.patch
           cd -
       - name: Re-apply Cached ETISS Patch
