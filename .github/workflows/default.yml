@@ -1044,17 +1044,17 @@ jobs:
         run: |
           genhtml --version
           # lcov --rc lcov_branch_coverage=1 -a RV32IMACFD.rv_par.info -a RV64IMACFD.rv_par.info -o RV.info
+          pwd
+          ls -l coverage-info-*/*.rv_par.info
           LCOV_ARGS=""
-          for f in *.rv_par.info
+          for f in coverage-info-*/*.rv_par.info
           do
             echo f=$f
             if [ ! -f $f ]; then continue; fi
             LCOV_ARGS="$LCOV_ARGS -a $f"
           done
           echo LCOV_ARGS=$LCOV_ARGS
-
           lcov --rc lcov_branch_coverage=1 $LCOV_ARGS -o RV.info 2>&1 | tee -a coverage_out.txt
-          rm -rf rv_par/ RV.info
           genhtml -o rv_par --branch-coverage RV.info 2>&1
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
