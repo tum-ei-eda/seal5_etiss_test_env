@@ -198,6 +198,39 @@ jobs:
           git reset --soft HEAD~1
           git restore --staged .
           rm update_refs.patch
+      - name: Cache M2-ISA-R Model
+        id: cache-m2isar-model
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-m2isar-model
+        with:
+          path: ${{ github.workspace }}/etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel
+          key: m2isar-model-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
+            }}-${{ matrix.config.ETISS_ARCH }}
+      - name: Check M2-ISA-R Model Cache Hit/Miss
+        if: ${{ steps.cache-m2isar-model.outputs.cache-hit != 'true' && success() }}
+        run: |
+          echo "M2-ISA-R Model Cache Miss -> re-gen required" >> $GITHUB_STEP_SUMMARY
+      - name: Setup M2-ISA-R
+        if: ${{ (steps.cache-m2isar-model.outputs.cache-hit != 'true' || steps.cache-etiss-patch.outputs.cache-hit != 'true') && success() }}
+        run: |
+          cd M2-ISA-R
+          virtualenv -p python${{ matrix.python-version }} venv
+          source venv/bin/activate
+          pip install -e .
+      - name: Run M2-ISA-R CoreDSL2 Parser
+        if: ${{ steps.cache-m2isar-model.outputs.cache-hit != 'true' && success() }}
+        run: |
+          cd M2-ISA-R
+          source venv/bin/activate
+          python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc --infer-types --validate
+      - name: Upload M2ISAR Model artifacts
+        # if: ${{ steps.cache-m2isar-model.outputs.cache-hit != 'true' && success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
+          path: |
+            etiss_arch_riscv/gen_model
       - name: Cache ETISS Patch
         id: cache-etiss-patch
         uses: actions/cache@v4
@@ -208,29 +241,16 @@ jobs:
           key: etiss-patch-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
             }}-${{ matrix.config.ETISS_ARCH }}
-      - name: Setup M2-ISA-R
+      - name: Check ETISS Patch Cache Hit/Miss
         if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
         run: |
-          cd M2-ISA-R
-          virtualenv -p python${{ matrix.python-version }} venv
-          source venv/bin/activate
-          pip install -e .
           echo "ETISS Patch Cache Miss -> re-gen required" >> $GITHUB_STEP_SUMMARY
-      - name: Run M2-ISA-R
+      - name: Run M2-ISA-R ETISS Writer
         if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
         run: |
           cd M2-ISA-R
           source venv/bin/activate
-          # TODO: generalize
-          python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc --infer-types --validate
           python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage --fill-mode $ETISS_FILL_MODE --gdb-xml-descr $GDB_XML_DESCR
-      - name: Upload M2ISAR Model artifacts
-        if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
-          path: |
-            etiss_arch_riscv/gen_model
       - name: Patch ETISS
         if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
         run: |
