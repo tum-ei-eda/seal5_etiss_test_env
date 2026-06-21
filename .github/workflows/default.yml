@@ -37,6 +37,7 @@ env:
   LLVM_VERSION: 19.1.1
   ETISS_TOP: top
   ETISS_FILL_MODE: auto
+  GDB_XML_DESCR: "RV32IMACFD:../etiss/ArchImpl/RV32IMACFD/xml/target.xml,RV64IMACFD:../etiss/ArchImpl/RV64IMACFD/xml/target.xml"
   PROGS: hello_world,dhry,tvm_vww,embench_crc32
   ETISS_BRANCH_NAME: auto_update_riscv_archlib
   DEBIAN_FRONTEND: noninteractive
@@ -222,7 +223,7 @@ jobs:
           source venv/bin/activate
           # TODO: generalize
           python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc --infer-types --validate
-          python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage --fill-mode $ETISS_FILL_MODE
+          python -m m2isar.backends.etiss.writer ../etiss_arch_riscv/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars --coverage --fill-mode $ETISS_FILL_MODE --gdb-xml-descr $GDB_XML_DESCR
       - name: Upload M2ISAR Model artifacts
         if: ${{ steps.cache-etiss-patch.outputs.cache-hit != 'true' && success() }}
         uses: actions/upload-artifact@v4
