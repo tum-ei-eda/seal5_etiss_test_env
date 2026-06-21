@@ -999,7 +999,8 @@ jobs:
         with:
           name: coverage-info-${{ matrix.config.ETISS_ARCH }}
           path: |
-            "*.info"
+            RV.info
+            ${{ matrix.config.ETISS_ARCH }}.rv_par.info
             coverage_out.txt
       - name: Upload HTML Coverage Report
         uses: actions/upload-artifact@v4
