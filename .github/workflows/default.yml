@@ -1157,7 +1157,7 @@ jobs:
           if ((${#prs[@]} > 0 && ${#prs[0]} != 0 )); then
             echo skipping PR creation
             echo "PR_EXISTS=1" >> $GITHUB_OUTPUT
-            PR_ID=$(echo ${prs[0]} | cut -f1)
+            PR_ID=$(echo ${prs[0]} | cut -d' ' -f1)
             echo PR_ID=$PR_ID
             echo "PR_ID=$PR_ID" >> $GITHUB_OUTPUT
           else
@@ -1297,7 +1297,7 @@ jobs:
           if ((${#prs[@]} > 0 && ${#prs[0]} != 0 )); then
             echo skipping PR creation
             echo "PR_EXISTS=1" >> $GITHUB_OUTPUT
-            PR_ID=$(echo ${prs[0]} | cut -f1)
+            PR_ID=$(echo ${prs[0]} | cut -d' ' -f1)
             echo PR_ID=$PR_ID
             echo "PR_ID=$PR_ID" >> $GITHUB_OUTPUT
           else
