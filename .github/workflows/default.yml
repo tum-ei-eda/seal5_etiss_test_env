@@ -1372,16 +1372,26 @@ jobs:
 
 
             Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+      - name: Find Comment
+        uses: peter-evans/find-comment@v3
+        id: find_comment
+        with:
+          issue-number: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
+          body-includes: Automated changes
       - name: Update PR comment
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' }}
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment.outputs.comment_id != '' }}
         uses: peter-evans/create-or-update-comment@v5
         with:
-          comment-id: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
+          comment-id: ${{ steps.find_comment.outputs.comment-id }}
           body: |
+            Automated changes by [create-pull-request](https://github.com/peter-evans/create-pull-request) GitHub action
+
             **Coverage Info:**
 
+            ```
             ${{ steps.check_patch.outputs.COVERAGE_SUMMARY }}
+            ```
 
             Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
-          reactions: eyes
+          edit-mode: replace
