@@ -951,7 +951,6 @@ jobs:
       - name: Download M2-ISA-R Metamodel
         uses: actions/download-artifact@v5
         with:
-          name: TODO
           name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
           path: etiss_arch_riscv/gen_model
       - name: Install Python dependencies
