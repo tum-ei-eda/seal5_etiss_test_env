@@ -1268,7 +1268,9 @@ jobs:
           echo "PATCH_EXISTS=$PATCH_EXISTS" >> $GITHUB_OUTPUT
           echo "COVERAGE_SUMMARY:"
           cat artifacts/coverage-info-merged/coverage_out.txt
-          echo "COVERAGE_SUMMARY=$(cat artifacts/coverage-info-merged/coverage_out.txt)" >> $GITHUB_OUTPUT
+          echo 'COVERAGE_SUMMARY<<EOF' >> $GITHUB_OUTPUT
+          cat artifacts/coverage-info-merged/coverage_out.txt >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
       - name: Clone ETISS
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
         uses: actions/checkout@v4
