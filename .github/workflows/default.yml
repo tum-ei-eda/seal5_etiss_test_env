@@ -1037,6 +1037,28 @@ jobs:
         run: |
           sudo apt update
           sudo apt -qq install -y python3-pip python3-venv lcov
+      - name: Configure Git
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+      - name: Clone Repo and Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
+        with:
+          name: refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        run: |
+          git am update_refs.patch
+          git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
       - name: Download Coverage Artifacts
         uses: actions/download-artifact@v5
         with:
