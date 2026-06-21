@@ -1153,6 +1153,9 @@ jobs:
           if ((${#prs[@]} > 0 && ${#prs[0]} != 0 )); then
             echo skipping PR creation
             echo "PR_EXISTS=1" >> $GITHUB_OUTPUT
+            PR_ID=$(echo ${prs[0]} | cut -f1)
+            echo PR_ID=$PR_ID
+            echo "PR_ID=$PR_ID" >> $GITHUB_OUTPUT
           else
             echo "PR_EXISTS=0" >> $GITHUB_OUTPUT
           fi
@@ -1265,6 +1268,7 @@ jobs:
           echo "PATCH_EXISTS=$PATCH_EXISTS" >> $GITHUB_OUTPUT
           echo "COVERAGE_SUMMARY:"
           cat artifacts/coverage-info-merged/coverage_out.txt
+          echo "COVERAGE_SUMMARY=$(cat artifacts/coverage-info-merged/coverage_out.txt)" >> $GITHUB_OUTPUT
       - name: Clone ETISS
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
         uses: actions/checkout@v4
@@ -1351,6 +1355,7 @@ jobs:
           git fetch --all
           cd -
       - name: Create Pull Request
+        id: create_pr
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.check_branch.outputs.PR_EXISTS == '0' }}
         uses: peter-evans/create-pull-request@v7
         with:
@@ -1365,3 +1370,16 @@ jobs:
 
 
             Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+      - name: Update PR comment
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' }}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
+          body: |
+            **Coverage Info:**
+
+            ${{ steps.check_patch.outputs.COVERAGE_SUMMARY }}
+
+            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          reactions: eyes
