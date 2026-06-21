@@ -264,8 +264,10 @@ jobs:
         ubuntu-version: [22.04]
         python-version: ['3.10']
         config:
-          - {ETISS_ARCH: RV32IMACFD, ETISS_BASE_ARCH: RV32IMACFD}
-          - {ETISS_ARCH: RV64IMACFD, ETISS_BASE_ARCH: RV64IMACFD}
+          - {ETISS_ARCH: RV32IMACFD, ETISS_BASE_ARCH: RV32IMACFD, ETISS_USE_COREDSL_COVERAGE: "OFF"}
+          - {ETISS_ARCH: RV64IMACFD, ETISS_BASE_ARCH: RV64IMACFD, ETISS_USE_COREDSL_COVERAGE: "OFF"}
+          - {ETISS_ARCH: RV32IMACFD, ETISS_BASE_ARCH: RV32IMACFD, ETISS_USE_COREDSL_COVERAGE: "ON"}
+          - {ETISS_ARCH: RV64IMACFD, ETISS_BASE_ARCH: RV64IMACFD, ETISS_USE_COREDSL_COVERAGE: "ON"}
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
@@ -304,7 +306,7 @@ jobs:
           path: etiss/build/install
           key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
-            }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.config.ETISS_USE_COREDSL_COVERAGE }}-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}
       - name: Install APT dependencies
         run: |
@@ -327,7 +329,7 @@ jobs:
           cd etiss/PluginImpl
           ln -s ../../etiss_riscv_tests/FileLoggerPlugin .
           cd ../..
-          cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 2>&1 | tee -a etiss_compile_out.txt
+          cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DETISS_USE_COREDSL_COVERAGE=${{ matrix.config.ETISS_USE_COREDSL_COVERAGE }} 2>&1 | tee -a etiss_compile_out.txt
           cmake --build etiss/build -j$(nproc) 2>&1 | tee -a etiss_compile_out.txt
           cmake --install etiss/build 2>&1 | tee -a etiss_compile_out.txt
           set +o pipefail
@@ -349,7 +351,7 @@ jobs:
         with:
           name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
-            }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}-${{ matrix.config.ETISS_ARCH }}--${{ matrix.config.ETISS_USE_COREDSL_COVERAGE }}-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}
           path: etiss/build/install
   setup_examples:
@@ -581,7 +583,7 @@ jobs:
         with:
           name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
-            }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}-${{ matrix.config.ETISS_ARCH }}-OFF-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}
           path: etiss/build/install
       - name: Run Examples on ${{ matrix.config.ETISS_ARCH }}
@@ -806,7 +808,7 @@ jobs:
         with:
           name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
-            }}-${{ matrix.config.ETISS_ARCH }}-${{ needs.check.outputs.etiss_riscv_tests_ref
+            }}-${{ matrix.config.ETISS_ARCH }}-ON-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}
           path: etiss/build/install
       - name: Run ETISS RISC-V Tests
@@ -823,7 +825,7 @@ jobs:
         # if: success() || failure()
         uses: actions/upload-artifact@v4
         with:
-          name: etiss-riscv-tests-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH
+          name: etiss-riscv-tests-default-${{ matrix.config.ETISS_ARCH
             }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
             }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
             matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
@@ -894,6 +896,105 @@ jobs:
       - name: Cleanup
         if: success()
         run: rm -f *_out.txt results_* pass.txt fail.txt fail_filtered.txt || true
+  report_coverage:
+    needs: [check, patch_etiss, run_tests]
+    strategy:
+      fail-fast: false
+      # fail-fast: true
+      matrix:
+        ubuntu-version: [22.04]
+        python-version: ['3.10']
+        jit:
+          - TCC
+          # - GCC
+        config:
+          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv32imafc, ETISS_ARCH: RV32IMACFD,
+             ETISS_BASE_ARCH: RV32IMACFD, ABI: ilp32f, XLEN: 32, TEST_EXTS: imacf}  # rv32gc not supported by multilib gcc
+          - {RISCV_GCC_NAME: riscv64-unknown-elf, ARCH: rv64imafdc, ETISS_ARCH: RV64IMACFD,
+             ETISS_BASE_ARCH: RV64IMACFD, ABI: lp64d, XLEN: 64, TEST_EXTS: imacfd}
+    runs-on: ubuntu-${{ matrix.ubuntu-version }}
+    steps:
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install APT dependencies
+        run: |
+          sudo apt update
+          sudo apt -qq install -y python3-pip python3-venv lcov
+      - name: Clone Repo and Submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - name: Download Refs Artifact
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: actions/download-artifact@v5
+        with:
+          name: refs-patch
+      - name: Apply Refs patch
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        run: |
+          git am update_refs.patch
+          git submodule update --init --recursive
+          git reset --soft HEAD~1
+          git restore --staged .
+          rm update_refs.patch
+      - name: Download Prebuilt Tests
+        uses: actions/download-artifact@v5
+        with:
+          name: etiss-riscv-tests-default-${{ matrix.config.ETISS_ARCH
+            }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
+            }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
+            matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
+      - name: Download M2-ISA-R Metamodel
+        uses: actions/download-artifact@v5
+        with:
+          name: TODO
+          name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
+          path: etiss_arch_riscv/gen_model
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install virtualenv
+      - name: Setup M2-ISA-R
+        run: |
+          cd M2-ISA-R
+          virtualenv -p python${{ matrix.python-version }} venv
+          source venv/bin/activate
+          pip install -e .
+          echo "ETISS Patch Cache Miss -> re-gen required" >> $GITHUB_STEP_SUMMARY
+      - name: Generate Coverage Report
+        run: |
+          genhtml --version
+          python -m m2isar.backends.coverage.coverage_lcov -o rv_par.info --legacy etiss_arch_riscv/gen_model/top.m2isarmodel results_*/coverage/*.csv
+          # lcov --rc lcov_branch_coverage=1 -a RV32IMACFD.rv_par.info -a RV64IMACFD.rv_par.info -o RV.info
+          lcov --rc lcov_branch_coverage=1 -a ${{ matrix.config.ETISS_ARCH }}.rv_par.info -o RV.info
+          genhtml -o rv_par --branch-coverage RV.info
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.config.ETISS_ARCH
+            }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
+            }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
+            matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
+          path: *.info
+      - name: Upload HTML Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html-${{ matrix.config.ETISS_ARCH
+            }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
+            }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
+            matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
+          path: rv_par
+      - name: Add ETISS RISC-V Test Results Summary
+        # if: steps.etiss-run-riscv-tests.outcome != 'success'
+        run: |
+          echo "### ETISS Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+      - name: Cleanup
+        if: success()
+        run: rm -f *_out.txt results_* *.info rv_par || true
   finalize:
     needs: [check, run_examples, run_tests]
     runs-on: ubuntu-latest
