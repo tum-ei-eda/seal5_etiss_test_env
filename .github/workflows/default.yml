@@ -878,11 +878,11 @@ jobs:
           NUM_PASSING=$(cat pass.txt | wc -l)
           NUM_FAILING=$(cat fail.txt | wc -l)
           NUM_FILTERED_FAILING=$(cat fail_filtered.txt | wc -l)
-          echo "NUM_TESTS=$NUM_TESTS"
-          echo "NUM_PASSING=$NUM_PASSING"
-          echo "NUM_FAILING=$NUM_FAILING"
-          echo "NUM_EXPECTED_FAILING=$NUM_EXPECTED_FAILING"
-          echo "NUM_FILTERED_FAILING=$NUM_FILTERED_FAILING"
+          # echo "NUM_TESTS=$NUM_TESTS"
+          # echo "NUM_PASSING=$NUM_PASSING"
+          # echo "NUM_FAILING=$NUM_FAILING"
+          # echo "NUM_EXPECTED_FAILING=$NUM_EXPECTED_FAILING"
+          # echo "NUM_FILTERED_FAILING=$NUM_FILTERED_FAILING"
           echo "**Results:**" >> $GITHUB_STEP_SUMMARY
           echo "Passing: #$NUM_PASSING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
           # cat pass.txt >> $GITHUB_STEP_SUMMARY
@@ -897,6 +897,10 @@ jobs:
           echo "Failing (Filtered): #$NUM_FILTERED_FAILING/$NUM_TESTS" >> $GITHUB_STEP_SUMMARY
           cat fail_filtered.txt >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
+          jq -n "{jit: \"${{ matrix.jit }}\", etiss_arch: \"${{ matrix.config.ETISS_ARCH }}\", test_exts: \"${{ matrix.config.TEST_EXTS }}\", num_tests: $NUM_TESTS, num_pass: $NUM_PASSING, num_fail: $NUM_FAILING, num_fail_expected: $NUM_EXPECTED_FAILING, num_fail_filtered: $NUM_FILTERED_FAILING}" > test_results.json
+          jq -s '[.[]?]' test_results.json > combined_test_results.json
+          ./scripts/json_test_results2markdown.sh combined_test_results.json > combined_test_results.md
+          cat combined_test_results.md
           if [[ "$NUM_TESTS" == "0" ]]
           then
               echo "No tests executed! Aborting..." >> $GITHUB_STEP_SUMMARY
@@ -915,9 +919,6 @@ jobs:
           else
               echo "No unexpected failing tests! Continuing..." >> $GITHUB_STEP_SUMMARY
           fi
-          jq -n "{jit: \"${{ matrix.jit }}\", etiss_arch: \"${{ matrix.config.ETISS_ARCH }}\", test_exts: \"${{ matrix.config.TEST_EXTS }}\", num_tests: $NUM_TESTS, num_pass: $NUM_PASSING, num_fail: $NUM_FAILING, num_fail_expected: $NUM_EXPECTED_FAILING, num_fail_filtered: $NUM_FILTERED_FAILING}" > test_results.json
-          jq -s '[.[]?]' test_results.json > combined_test_results.json
-          ./scripts/json_test_results2markdown.sh combined_test_results.json > combined_test_results.md
       - name: Upload Test Summary
         # if: success() || failure()
         uses: actions/upload-artifact@v4
