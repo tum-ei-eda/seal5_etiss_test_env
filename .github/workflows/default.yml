@@ -915,7 +915,7 @@ jobs:
           else
               echo "No unexpected failing tests! Continuing..." >> $GITHUB_STEP_SUMMARY
           fi
-          jq -n "{jit: \"${{ matrix.jit }}\", etiss_arch: \"${{ matrix.config.ETISS_ARCH }}\", test_exts: \"${{ matrix.config.TEST_EXTS }}\", num_tests: $NUM_TESTS, num_pass: $NUM_PASSING, num_fail: $NUM_FAILING, num_fail_expected: $NUM_EXPECTED_FAILING, num_fail_filtered: $NUM_FILTERED_FAILING}" test_results.json
+          jq -n "{jit: \"${{ matrix.jit }}\", etiss_arch: \"${{ matrix.config.ETISS_ARCH }}\", test_exts: \"${{ matrix.config.TEST_EXTS }}\", num_tests: $NUM_TESTS, num_pass: $NUM_PASSING, num_fail: $NUM_FAILING, num_fail_expected: $NUM_EXPECTED_FAILING, num_fail_filtered: $NUM_FILTERED_FAILING}" > test_results.json
           jq -s '[.[]?]' test_results.json > combined_test_results.json
           ./scripts/json_test_results2markdown.sh combined_test_results.json > combined_test_results.md
       - name: Upload Test Summary
