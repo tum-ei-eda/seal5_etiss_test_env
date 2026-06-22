@@ -8,6 +8,7 @@ do
     echo "Processing $DIR"
     HISTORY_FILE="$DIR/history.json"
     COMBINED_FILE="$DIR/combined_stats.json"
+    COMBINED_FILE_MD="$DIR/combined_stats.md"
 
     # Skip if combined_stats.json doesn't exist
     [ -f "$COMBINED_FILE" ] || continue
@@ -22,5 +23,5 @@ do
     # jq -s '.[0] + .[1]' "$HISTORY_FILE" "$COMBINED_FILE" > "${HISTORY_FILE}.tmp" && mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE"
     jq -s '[.[][]?]' "$HISTORY_FILE" "$COMBINED_FILE" > "${HISTORY_FILE}.tmp" && mv "${HISTORY_FILE}.tmp" "$HISTORY_FILE"
     echo "Updated $HISTORY_FILE with $(jq length "$HISTORY_FILE") entries"
-    rm $COMBINED_FILE
+    rm $COMBINED_FILE $COMBINED_FILE_MD
 done
