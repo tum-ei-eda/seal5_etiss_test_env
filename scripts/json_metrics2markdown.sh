@@ -3,7 +3,7 @@
 INP=$1
 
 jq -r '
-  (["prog","jit","etiss_arch","arch","abi","mips","sim_time [s]","sim_cycles"] | @tsv),
+  (["prog","jit","etiss_arch","arch","abi","mips","sim_time","sim_cycles"] | @tsv),
   (.[] | [.prog,.jit,.etiss_arch,.arch,.abi,.mips,.Simulation_Time,.CPU_cycle] | @tsv)
 ' $INP |
 awk '
@@ -14,5 +14,5 @@ NR==1 {
     next
 }
 {
-    print "| "$1" | "$2" | "$3" | "$4"/"$5" | "$6" | "$7" | "$8" |"
+    print "| "$1" | "$2" | "$3" | "$4"/"$5" | "$6" | "$7"s | "$8" |"
 }'
