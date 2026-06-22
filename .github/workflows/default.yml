@@ -1387,8 +1387,11 @@ jobs:
           body-includes: Automated changes
           repository: tum-ei-eda/etiss
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+      - name: Commit Refs to PR branch
+        run: |
+          echo "steps.find_comment.outputs.comment-id=${{ steps.find_comment.outputs.comment-id }}"
       - name: Update PR comment
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment.outputs.comment_id != '' }}
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment.outputs.comment-id != '' }}
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.find_comment.outputs.comment-id }}
