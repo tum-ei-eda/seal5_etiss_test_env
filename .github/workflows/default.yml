@@ -1387,14 +1387,36 @@ jobs:
           body-includes: Automated changes
           repository: tum-ei-eda/etiss
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-      - name: Commit Refs to PR branch
+      - name: Find Comment2
+        uses: peter-evans/find-comment@v3
+        id: find_comment2
+        with:
+          issue-number: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
+          body-includes: Coverage Info
+          repository: tum-ei-eda/etiss
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+      - name: DBG
         run: |
+          echo "issue-number=${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}"
           echo "steps.find_comment.outputs.comment-id=${{ steps.find_comment.outputs.comment-id }}"
+          echo "steps.find_comment2.outputs.comment-id=${{ steps.find_comment2.outputs.comment-id }}"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.SEAL5_ACCESS_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/tum-ei-eda/etiss/issues/245/comments | cat
+          echo qwert
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.SEAL5_ACCESS_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/tum-ei-eda/etiss/issues/${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}/comments | cat
+          echo trewq
       - name: Update PR comment
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment.outputs.comment-id != '' }}
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment2.outputs.comment-id != '' }}
         uses: peter-evans/create-or-update-comment@v5
         with:
-          comment-id: ${{ steps.find_comment.outputs.comment-id }}
+          comment-id: ${{ steps.find_comment2.outputs.comment-id }}
           body: |
             Automated changes by [create-pull-request](https://github.com/peter-evans/create-pull-request) GitHub action
 
@@ -1409,3 +1431,37 @@ jobs:
           edit-mode: replace
           repository: tum-ei-eda/etiss
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+      - name: Create PR comment
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment2.outputs.comment-id == '' }}
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          issue-number: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
+          body: |
+            **Coverage Info:**
+
+            ```
+            ${{ steps.check_patch.outputs.COVERAGE_SUMMARY }}
+            ```
+
+            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          # edit-mode: replace
+          repository: tum-ei-eda/etiss
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+      - name: DBG2
+        run: |
+          echo "issue-number=${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}"
+          echo "steps.find_comment.outputs.comment-id=${{ steps.find_comment.outputs.comment-id }}"
+          echo "steps.find_comment2.outputs.comment-id=${{ steps.find_comment2.outputs.comment-id }}"
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.SEAL5_ACCESS_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/tum-ei-eda/etiss/issues/245/comments | cat
+          echo qwert
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.SEAL5_ACCESS_TOKEN }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/tum-ei-eda/etiss/issues/${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}/comments | cat
+          echo trewq
