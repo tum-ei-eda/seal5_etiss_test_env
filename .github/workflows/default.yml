@@ -915,6 +915,20 @@ jobs:
           else
               echo "No unexpected failing tests! Continuing..." >> $GITHUB_STEP_SUMMARY
           fi
+          jq -n '{jit: "${{ matrix.jit }}", etiss_arch: "${{ matrix.config.ETISS_ARCH }}", test_exts: "${{ matrix.config.TEST_EXTS }}", num_tests: $NUM_TESTS, num_pass: $NUM_PASSING, num_fail: $NUM_FAILING, num_fail_expected: $NUM_EXPECTED_FAILING, num_fail_filtered: $NUM_FILTERED_FAILING}' test_results.json
+          jq -s '[.[]?]' test_results.json > combined_test_results.json
+          ./scripts/json_test_results2markdown.sh combined_test_results.json > combined_test_results.md
+      - name: Upload Test Summary
+        # if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: etiss-riscv-tests-summary-default-${{ matrix.config.ETISS_ARCH
+            }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
+            }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
+            matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
+          path: |
+            combined_test_results.json
+            combined_test_results.md
       - name: Cleanup
         if: success()
         run: rm -f *_out.txt results_* pass.txt fail.txt fail_filtered.txt || true
@@ -1206,13 +1220,17 @@ jobs:
 
   stats:
     if: ${{ github.event_name == 'push' }}
-    needs: [run_examples]
+    needs: [run_examples, run_tests]
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+      - name: Install APT dependencies
+        run: |
+          sudo apt update
+          sudo apt -qq install -y jq
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -1231,8 +1249,8 @@ jobs:
           path: ./artifacts
       - name: Merge ETISS Stats
         run: |
-          ls -l artifacts/etiss-stats*/stats_combined.csv
-          jq -s '[.[][]?]' artifacts/etiss-stats*/stats_combined.csv > stats_merged.json
+          ls -l artifacts/etiss-stats*/combined_stats.json
+          jq -s '[.[][]?]' artifacts/etiss-stats*/combined_stats.json > stats_merged.json
           ./scripts/json_metrics2markdown.sh stats_merged.json > stats_merged.md
       - name: Upload Merged Stats
         uses: actions/upload-artifact@v4
@@ -1247,6 +1265,25 @@ jobs:
           echo "### Merged ETISS Stats" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
           cat stats_merged.md >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+      - name: Merge Test Results
+        run: |
+          ls -l artifacts/etiss-riscv-tests-summary-default*/combined_test_results.json
+          jq -s '[.[][]?]' artifacts/etiss-riscv-tests-summary-default*/combined_test_results.json > test_results_merged.json
+          ./scripts/json_test_results2markdown.sh test_results_merged.json > test_results_merged.md
+      - name: Upload Merged Test Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-merged
+          path: |
+            test_results_merged.csv
+            test_results_merged.md
+      - name: Add Merged Test Results Summary
+        # if: steps.etiss-run-riscv-tests.outcome != 'success'
+        run: |
+          echo "### Merged Test Results" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          cat test_results_merged.md >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Check stats
         run: |
@@ -1297,6 +1334,9 @@ jobs:
           echo 'EOF' >> $GITHUB_OUTPUT
           echo 'SIM_STATS<<EOF' >> $GITHUB_OUTPUT
           cat artifacts/stats-merged/stats_merged.md >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+          echo 'TEST_RESULTS<<EOF' >> $GITHUB_OUTPUT
+          cat artifacts/test-results-merged/test_results_merged.md >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
       - name: Clone ETISS
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
@@ -1449,6 +1489,14 @@ jobs:
             ${{ steps.check_patch.outputs.COVERAGE_SUMMARY }}
             ```
 
+            **Sim Stats:**
+
+            ${{ steps.check_patch.outputs.SIM_STATS }}
+
+            **Test Results:**
+
+            ${{ steps.check_patch.outputs.TEST_RESULTS }}
+
             Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
           edit-mode: replace
@@ -1470,9 +1518,9 @@ jobs:
 
             ${{ steps.check_patch.outputs.SIM_STATS }}
 
-            ```
-            ${{ steps.check_patch.outputs.COVERAGE_SUMMARY }}
-            ```
+            **Test Results:**
+
+            ${{ steps.check_patch.outputs.TEST_RESULTS }}
 
             Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
