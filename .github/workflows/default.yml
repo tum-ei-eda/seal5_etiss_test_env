@@ -1251,7 +1251,8 @@ jobs:
       - name: Merge ETISS Stats
         run: |
           ls -l artifacts/etiss-stats*/combined_stats.json
-          jq -s '[.[][]?]' artifacts/etiss-stats*/combined_stats.json > stats_merged.json
+          jq -s '[.[][]?]' artifacts/etiss-stats*/combined_stats.json > stats_merged_.json
+          jq 'sort_by([.prog, .jit, .etiss_arch, .arch, .abi])' stats_merged_.json > stats_merged.json
           ./scripts/json_metrics2markdown.sh stats_merged.json > stats_merged.md
       - name: Upload Merged Stats
         uses: actions/upload-artifact@v4
@@ -1270,7 +1271,8 @@ jobs:
       - name: Merge Test Results
         run: |
           ls -l artifacts/etiss-riscv-tests-summary-default*/combined_test_results.json
-          jq -s '[.[][]?]' artifacts/etiss-riscv-tests-summary-default*/combined_test_results.json > test_results_merged.json
+          jq -s '[.[][]?]' artifacts/etiss-riscv-tests-summary-default*/combined_test_results.json > test_results_merged_.json
+          jq 'sort_by([.jit, .etiss_arch, .test_exts])' test_results_merged_.json > test_results_merged.json
           ./scripts/json_test_results2markdown.sh test_results_merged.json > test_results_merged.md
       - name: Upload Merged Test Results
         uses: actions/upload-artifact@v4
