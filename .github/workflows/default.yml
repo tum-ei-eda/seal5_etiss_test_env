@@ -622,7 +622,7 @@ jobs:
               timeout 5m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
               if [[ -f stats.json ]]
               then
-                  jq -s "[.[] + {prog: \"$prog\", jit: \"${{ matrix.jit}}\", etiss_arch: \"${{ matrix.config.ETISS_ARCH }}\", arch: \"${{ matrix.config.ARCH }}\", abi: \"${{ matrix.config.ABI }}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ github.sha }}\", etiss_sha: \"${{ needs.check.outputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
+                  jq -s "[.[] + {prog: \"$prog\", toolchain: \"${{ matrix.toolchain }}\", jit: \"${{ matrix.jit}}\", etiss_arch: \"${{ matrix.config.ETISS_ARCH }}\", arch: \"${{ matrix.config.ARCH }}\", abi: \"${{ matrix.config.ABI }}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ github.sha }}\", etiss_sha: \"${{ needs.check.outputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
                   rm stats.json
               fi
           done
