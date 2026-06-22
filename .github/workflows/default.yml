@@ -622,12 +622,13 @@ jobs:
               timeout 5m etiss/build/install/bin/bare_etiss_processor -ietiss_riscv_examples/build/install/ini/$prog.ini --arch.cpu=${{ matrix.config.ETISS_ARCH }} --jit.type=${{ matrix.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
               if [[ -f stats.json ]]
               then
-                  jq -s "[.[] + {prog: \"$prog\", jit: \"${{ matrix.jit}}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ github.sha }}\", etiss_sha: \"${{ needs.check.outputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
+                  jq -s "[.[] + {prog: \"$prog\", jit: \"${{ matrix.jit}}\", etiss_arch: \"${{ matrix.config.ETISS_ARCH }}\", arch: \"${{ matrix.config.ARCH }}\", abi: \"${{ matrix.config.ABI }}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ github.sha }}\", etiss_sha: \"${{ needs.check.outputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
                   rm stats.json
               fi
           done
           jq -s '[.[][]?]' stats*.json > combined_stats.json
           set +o pipefail
+          ./scripts/json_metrics2markdown.sh combined_stats.json > combined_stats.md
       - name: Add ETISS SW Run Summary (Failure)
         if: ${{ steps.etiss-run-sw.outcome != 'success' }}
         run: |
@@ -658,14 +659,14 @@ jobs:
             }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
             }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
             matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
-          path: combined_stats.json
+          path: |
+            combined_stats.json
+            combined_stats.md
       - name: Add ETISS SW Run Summary (Metrics)
         if: ${{ steps.etiss-run-sw.outcome == 'success' }}
         run: |
           echo "### ETISS SW Run Metrics" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          egrep '(\-\-\- Program:|MIPS \(estimated\):|Simulation Time:|CPU Cycles \(estimated\):)' etiss_sw_run_out.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          cat combined_stats.md >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
   setup_tests:
     outputs:
@@ -1095,7 +1096,7 @@ jobs:
         with:
           name: coverage-html-merged-${{ matrix.ubuntu-version }}
           path: rv_par
-      - name: Add ETISS RISC-V Test Results Summary
+      - name: Add ETISS RISC-V Test Coverage Summary
         # if: steps.etiss-run-riscv-tests.outcome != 'success'
         run: |
           echo "### Merged ETISS Coverage Report" >> $GITHUB_STEP_SUMMARY
@@ -1228,6 +1229,25 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
+      - name: Merge ETISS Stats
+        run: |
+          ls -l artifacts/etiss-stats*/stats_combined.csv
+          jq -s '[.[][]?]' artifacts/etiss-stats*/stats_combined.csv > stats_merged.json
+          ./scripts/json_metrics2markdown.sh stats_merged.json > stats_merged.md
+      - name: Upload Merged Stats
+        uses: actions/upload-artifact@v4
+        with:
+          name: stats-merged
+          path: |
+            stats_merged.csv
+            stats_merged.md
+      - name: Add Merged ETISS Stats Summary
+        # if: steps.etiss-run-riscv-tests.outcome != 'success'
+        run: |
+          echo "### Merged ETISS Stats" >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+          cat stats_merged.md >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
       - name: Check stats
         run: |
           python3 -m pip install -r requirements.txt
@@ -1247,7 +1267,7 @@ jobs:
           # force: true
   publish:
     if: ${{ github.event.client_payload.is_pr != 'true' && github.event.client_payload.from == '' }}
-    needs: [setup_etiss, finalize, merge_coverage]
+    needs: [setup_etiss, finalize, merge_coverage, stats]
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
@@ -1274,6 +1294,9 @@ jobs:
           cat artifacts/coverage-info-merged/coverage_out.txt
           echo 'COVERAGE_SUMMARY<<EOF' >> $GITHUB_OUTPUT
           cat artifacts/coverage-info-merged/coverage_out.txt >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+          echo 'SIM_STATS<<EOF' >> $GITHUB_OUTPUT
+          cat artifacts/stats-merged/stats_merged.md >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
       - name: Clone ETISS
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
@@ -1438,6 +1461,14 @@ jobs:
           issue-number: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
           body: |
             **Coverage Info:**
+
+            ```
+            ${{ steps.check_patch.outputs.COVERAGE_SUMMARY }}
+            ```
+
+            **Sim Stats:**
+
+            ${{ steps.check_patch.outputs.SIM_STATS }}
 
             ```
             ${{ steps.check_patch.outputs.COVERAGE_SUMMARY }}
