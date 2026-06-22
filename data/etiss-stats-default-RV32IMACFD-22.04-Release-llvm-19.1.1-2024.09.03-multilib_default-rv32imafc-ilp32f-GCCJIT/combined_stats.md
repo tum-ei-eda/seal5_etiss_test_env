@@ -1,6 +1,6 @@
-| prog | jit | etiss_arch | arch/abi | mips | sim_time | sim_cycles |
-|---|---|---|---|---|---|---|
-| dhry | GCC | RV32IMACFD | rv32imafc/ilp32f | 20.5098 | 25.2596s | 518070000 |
-| embench_crc32 | GCC | RV32IMACFD | rv32imafc/ilp32f | 2.21145 | 1.82228s | 4029870 |
-| hello_world | GCC | RV32IMACFD | rv32imafc/ilp32f | 0.00037744 | 6.53349s | 2466 |
-| tvm_vww | GCC | RV32IMACFD | rv32imafc/ilp32f | 21.3167 | 64.3954s | 1372700000 |
+| prog | toolchain | jit | etiss_arch/arch | abi | mips | sim_time | sim_cycles |
+|---|---|---|---|---|---|---|---|
+| dhry | llvm | GCC | RV32IMACFD/rv32imafc | ilp32f | 20.807s | 24.8989 | 518070000 |
+| embench_crc32 | llvm | GCC | RV32IMACFD/rv32imafc | ilp32f | 2.27539s | 1.77107 | 4029870 |
+| hello_world | llvm | GCC | RV32IMACFD/rv32imafc | ilp32f | 0.000323236s | 7.62911 | 2466 |
+| tvm_vww | llvm | GCC | RV32IMACFD/rv32imafc | ilp32f | 21.7181s | 63.2052 | 1372700000 |
