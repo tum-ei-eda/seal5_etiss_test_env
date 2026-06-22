@@ -1385,6 +1385,8 @@ jobs:
         with:
           issue-number: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
           body-includes: Automated changes
+          repository: tum-ei-eda/etiss
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
       - name: Update PR comment
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment.outputs.comment_id != '' }}
         uses: peter-evans/create-or-update-comment@v5
@@ -1402,3 +1404,5 @@ jobs:
             Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
           edit-mode: replace
+          repository: tum-ei-eda/etiss
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
