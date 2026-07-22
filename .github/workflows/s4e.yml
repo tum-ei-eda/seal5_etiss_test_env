@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
@@ -88,7 +88,7 @@ jobs:
           echo "github.event.client_payload.ref=${{ github.event.client_payload.ref }}"
           echo "github.event.client_payload.from=${{ github.event.client_payload.from }}"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -254,7 +254,7 @@ jobs:
           python -m m2isar.backends.etiss.writer ../riscv-coredsl-extensions/gen_model/${{ env.ETISS_TOP }}.m2isarmodel --separate --static-scalars
 
     # - name: Upload M2ISAR Model artifacts
-    #   uses: actions/upload-artifact@v4
+    #   uses: actions/upload-artifact@v7
     #   with:
     #      name: m2isar-model-files
     #      path: |
@@ -309,7 +309,7 @@ jobs:
           cd -
       - name: Upload LLVM Patch
         if: steps.cache-seal5.outputs.cache-hit != 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: seal5-patch-s4e-${{ env.LLVM_REF }}
           path: ${{ github.workspace }}/llvm.patch
@@ -407,7 +407,7 @@ jobs:
           echo "- - -" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Upload ETISS Outputs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: etiss-output-s4e-${{ env.PROG }}-${{ env.ETISS_ARCH }}-${{ matrix.ubuntu-version
             }}-${{ env.BUILD_TYPE }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
@@ -452,7 +452,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.10"
       - name: Configure Git
@@ -482,7 +482,7 @@ jobs:
           echo "PATCH_EXISTS=$PATCH_EXISTS" >> $GITHUB_OUTPUT
       - name: Clone LLVM Fork
         if: steps.check_patch.outputs.PATCH_EXISTS != '0'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.LLVM_FORK }}
           path: llvm_fork

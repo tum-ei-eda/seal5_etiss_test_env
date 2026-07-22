@@ -63,7 +63,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Configure Git
@@ -71,7 +71,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -153,7 +153,7 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Upload Refs Patch
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: refs-patch
           path: update_refs.patch
@@ -174,7 +174,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
@@ -190,7 +190,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -235,7 +235,7 @@ jobs:
           python -m m2isar.frontends.coredsl2.parser ../etiss_arch_riscv/${{ env.ETISS_TOP }}.core_desc --infer-types --validate
       - name: Upload M2ISAR Model artifacts
         # if: ${{ steps.cache-m2isar-model.outputs.cache-hit != 'true' && success() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
           path: |
@@ -278,7 +278,7 @@ jobs:
           git apply ${{ github.workspace }}/etiss.patch
           cd -
       - name: Upload ETISS Patch
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: etiss-patch-${{ matrix.config.ETISS_ARCH }}
           path: ${{ github.workspace }}/etiss.patch
@@ -301,7 +301,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Configure Git
@@ -309,7 +309,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -382,7 +382,7 @@ jobs:
           # echo >> $GITHUB_STEP_SUMMARY
           exit 1
       - name: Upload ETISS Install
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
@@ -413,7 +413,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Configure Git
@@ -421,7 +421,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -557,7 +557,7 @@ jobs:
           abi: ${{ matrix.config.ABI }}
           progs: ${{ env.PROGS }}
       - name: Upload Prebuilt Examples
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: examples-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
             }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
@@ -591,7 +591,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
@@ -603,7 +603,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -671,7 +671,7 @@ jobs:
           exit 1
       - name: Upload ETISS Outputs
         if: ${{ success() || failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: etiss-output-default-${{ env.PROGS }}-${{ matrix.config.ETISS_ARCH
             }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
@@ -680,7 +680,7 @@ jobs:
           path: etiss_sw_run_out.txt
       - name: Upload ETISS Stats (MIPS)
         if: ${{ success() || failure() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: etiss-stats-default-${{ matrix.config.ETISS_ARCH
             }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
@@ -713,7 +713,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Configure Git
@@ -721,7 +721,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -805,7 +805,7 @@ jobs:
           # echo >> $GITHUB_STEP_SUMMARY
           exit 1
       - name: Upload Prebuilt Tests
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}-${{ matrix.config.XLEN }}
@@ -837,7 +837,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
@@ -849,7 +849,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -892,7 +892,7 @@ jobs:
           python etiss_riscv_tests/test.py --arch ${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 20 --jit $(echo ${{ matrix.jit }} | tr '[:upper:]' '[:lower:]') --runlevel msu --keep-output both riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
       - name: Upload Test Artifacts
         # if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: etiss-riscv-tests-default-${{ matrix.config.ETISS_ARCH
             }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
@@ -968,7 +968,7 @@ jobs:
           fi
       - name: Upload Test Summary
         # if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: etiss-riscv-tests-summary-default-${{ matrix.config.ETISS_ARCH
             }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
@@ -999,7 +999,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Configure Git
@@ -1011,7 +1011,7 @@ jobs:
           sudo apt update
           sudo apt -qq install -y python3-pip python3-venv lcov
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -1062,7 +1062,7 @@ jobs:
           lcov --rc lcov_branch_coverage=1 -a ${{ matrix.config.ETISS_ARCH }}.rv_par.info -o RV.info 2>&1 | tee -a coverage_out.txt
           genhtml -o rv_par --branch-coverage RV.info 2>&1
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-info-${{ matrix.config.ETISS_ARCH }}
           path: |
@@ -1070,7 +1070,7 @@ jobs:
             ${{ matrix.config.ETISS_ARCH }}.rv_par.info
             coverage_out.txt
       - name: Upload HTML Coverage Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-html-${{ matrix.config.ETISS_ARCH }}
           path: rv_par
@@ -1097,7 +1097,7 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu-version }}
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install APT dependencies
@@ -1109,7 +1109,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -1147,14 +1147,14 @@ jobs:
           lcov --rc lcov_branch_coverage=1 $LCOV_ARGS -o RV.info 2>&1 | tee -a coverage_out.txt
           genhtml -o rv_par --branch-coverage RV.info 2>&1
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-info-merged
           path: |
             "*.info"
             coverage_out.txt
       - name: Upload HTML Coverage Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-html-merged-${{ matrix.ubuntu-version }}
           path: rv_par
@@ -1175,7 +1175,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
       - name: Configure Git
@@ -1183,7 +1183,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -1272,7 +1272,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.10"
       - name: Install APT dependencies
@@ -1284,7 +1284,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Clone Repo and Submodules
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: stats
       - name: Add Summary Header
@@ -1302,7 +1302,7 @@ jobs:
           jq 'sort_by([.prog, .jit, .etiss_arch, .arch, .abi])' stats_merged_.json > stats_merged.json
           ./scripts/json_metrics2markdown.sh stats_merged.json > stats_merged.md
       - name: Upload Merged Stats
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stats-merged
           path: |
@@ -1322,7 +1322,7 @@ jobs:
           jq 'sort_by([.jit, .etiss_arch, .test_exts])' test_results_merged_.json > test_results_merged.json
           ./scripts/json_test_results2markdown.sh test_results_merged.json > test_results_merged.md
       - name: Upload Merged Test Results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-merged
           path: |
@@ -1358,7 +1358,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.10"
       - name: Configure Git
@@ -1390,7 +1390,7 @@ jobs:
           echo 'EOF' >> $GITHUB_OUTPUT
       - name: Clone ETISS
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: tum-ei-eda/etiss
           path: etiss
