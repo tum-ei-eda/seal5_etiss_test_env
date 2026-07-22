@@ -198,7 +198,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -317,7 +317,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -429,7 +429,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -611,7 +611,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -623,13 +623,13 @@ jobs:
           git restore --staged .
           rm update_refs.patch
       - name: Download Prebuilt Examples
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: examples-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
             }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
           path: etiss_riscv_examples/build/install
       - name: Download Prebuilt ETISS
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
@@ -738,7 +738,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -866,7 +866,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -878,13 +878,13 @@ jobs:
           git restore --staged .
           rm update_refs.patch
       - name: Download Prebuilt Tests
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: tests-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}-${{ matrix.config.XLEN }}
           path: riscv-tests/isa
       - name: Download Prebuilt ETISS
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: etiss-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
@@ -1028,7 +1028,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -1040,14 +1040,14 @@ jobs:
           git restore --staged .
           rm update_refs.patch
       - name: Download Test Results
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: etiss-riscv-tests-default-${{ matrix.config.ETISS_ARCH
             }}-${{ matrix.ubuntu-version }}-${{ env.BUILD_TYPE }}-${{ matrix.toolchain
             }}-${{ env.LLVM_VERSION }}-${{ env.TC_VERSION }}-${{ env.TC_VARIANT }}-${{
             matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.jit }}JIT
       - name: Download M2-ISA-R Metamodel
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: m2isar-model-${{ matrix.config.ETISS_ARCH }}
           path: etiss_arch_riscv/gen_model
@@ -1126,7 +1126,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -1138,7 +1138,7 @@ jobs:
           git restore --staged .
           rm update_refs.patch
       - name: Download Coverage Artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           pattern: "coverage-info-*"
       - name: Merge Coverage Reports
@@ -1200,7 +1200,7 @@ jobs:
           fetch-depth: 0
       - name: Download Refs Artifact
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           name: refs-patch
       - name: Apply Refs patch
@@ -1303,7 +1303,7 @@ jobs:
           echo "### Stats" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Download Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: ./artifacts
       - name: Merge ETISS Stats
@@ -1377,7 +1377,7 @@ jobs:
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
       - name: Download Artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           path: artifacts/
           github-token: ${{ github.token }}
