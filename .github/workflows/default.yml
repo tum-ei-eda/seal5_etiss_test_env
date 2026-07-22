@@ -46,6 +46,7 @@ permissions:
   contents: write
   actions: write
   pull-requests: write
+  issues: write
 jobs:
   check:
     outputs:
