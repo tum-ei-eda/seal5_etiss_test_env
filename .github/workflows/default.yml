@@ -505,38 +505,55 @@ jobs:
           max-size: 2G
           key: ccache-examples-build-rv${{ matrix.config.XLEN }}-${{ env.BUILD_TYPE }}
           variant: sccache
-      - name: Build Examples (LLVM)
-        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm' && success() }}
-        id: etiss-build-sw-llvm
+      # - name: Build Examples (LLVM)
+      #   if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm' && success() }}
+      #   id: etiss-build-sw-llvm
+      #   continue-on-error: true
+      #   run: |
+      #     set -o pipefail
+      #     cd etiss_riscv_examples
+      #     export PATH=$(pwd)/../llvm/bin/:$PATH
+      #     cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 2>&1 | tee -a etiss_sw_build_out.txt
+      #     for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
+      #         echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
+      #         cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
+      #     done
+      #     cmake --install build
+      #     set +o pipefail
+      # - name: Build Examples (GCC)
+      #   if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'gcc' && success() }}
+      #   id: etiss-build-sw-gcc
+      #   continue-on-error: true
+      #   run: |
+      #     # TODO: also run GCC here!
+      #     set -o pipefail
+      #     cd etiss_riscv_examples
+      #     cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 2>&1 | tee -a etiss_sw_build_out.txt
+      #     for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
+      #         echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
+      #         cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
+      #     done
+      #     cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
+      #     set +o pipefail
+      - name: Build Examples
+        if: ${{ ((steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm') || (steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'gcc')) && success() }}
+        id: build-examples
         continue-on-error: true
-        run: |
-          set -o pipefail
-          cd etiss_riscv_examples
-          export PATH=$(pwd)/../llvm/bin/:$PATH
-          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 2>&1 | tee -a etiss_sw_build_out.txt
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
-              echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
-              cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
-          done
-          cmake --install build
-          set +o pipefail
-      - name: Build Examples (GCC)
-        if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'gcc' && success() }}
-        id: etiss-build-sw-gcc
-        continue-on-error: true
-        run: |
-          # TODO: also run GCC here!
-          set -o pipefail
-          cd etiss_riscv_examples
-          cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ matrix.config.XLEN }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ matrix.config.ARCH }} -DRISCV_ABI=${{ matrix.config.ABI }} -DRISCV_TOOLCHAIN_PREFIX=$(pwd)/../gnu/ -DRISCV_TOOLCHAIN_BASENAME=${{ matrix.config.RISCV_GCC_NAME }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache 2>&1 | tee -a etiss_sw_build_out.txt
-          for prog in $(echo ${{ env.PROGS }} | sed 's/,/ /g'); do
-              echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
-              cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
-          done
-          cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
-          set +o pipefail
+        uses: ./.github/actions/build-examples
+        with:
+          enable-summary: true
+          examples-dir: ${{ github.workspace }}/etiss_riscv_examples
+          gnu-dir: ${{ github.workspace }}/gnu
+          gnu-name: ${{ matrix.config.RISCV_GCC_NAME }}
+          toolchain: ${{ matrix.TOOLCHAIN }}
+          build-type: ${{ env.BUILD_TYPE }}
+          xlen: ${{ matrix.config.XLEN }}
+          arch: ${{ matrix.config.ARCH }}
+          abi: ${{ matrix.config.ABI }}
+          progs: ${{ env.PROGS }}
       - name: Add ETISS SW Build Summary (Failure)
-        if: ${{ steps.etiss-build-sw-llvm.outcome == 'failure' || steps.etiss-build-sw-gcc.outcome == 'failure' }}
+        # if: ${{ steps.etiss-build-sw-llvm.outcome == 'failure' || steps.etiss-build-sw-gcc.outcome == 'failure' }}
+        if: ${{ steps.build-examples.outcome == 'failure' }}
         run: |
           echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
           echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY

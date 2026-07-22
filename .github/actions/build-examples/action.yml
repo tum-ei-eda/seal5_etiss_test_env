@@ -1,0 +1,76 @@
+---
+name: 'Build SW Examples'
+description: 'Compile Example Target SW'
+inputs:
+  examples-dir:
+    description: 'Examples SW directory'
+    required: true
+    default: ''
+  gnu-dir:
+    description: 'GNU TC install directory'
+    required: true
+    default: ''
+  toolchain:
+    description: 'Used toolchain (Choices: llvm, gcc)'
+    required: true
+    default: 'llvm'
+  build-type:
+    description: 'Value for CMAKE_BUILD_TYPE'
+    required: true
+    default: 'Release'
+  xlen:
+    description: 'XLEN of target (matching march)'
+    required: true
+    default: '?'
+  arch:
+    description: 'Value for -march=?'
+    required: true
+    default: '?'
+  abi:
+    description: 'Value for -mabi=?'
+    required: true
+    default: '?'
+  progs:
+    description: 'Comma-separated list of programs'
+    required: true
+    default: 'hello_world'
+  enable-summary:
+    description: 'Enable Job Summary'
+    required: true
+outputs: {}
+
+runs:
+  using: "composite"
+  steps:
+    # TODO merge GCC & GCC step!
+    - name: Build Examples (GCC Toolchain)
+      if: inputs.toolchain == 'gcc'
+      shell: bash
+      run: |
+        set -o pipefail
+        cd ${{ inputs.examples-dir }}
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ inputs.xlen }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} 2>&1 | tee -a etiss_sw_build_out.txt
+        for prog in $(echo ${{ inputs.PROGS }} | sed 's/,/ /g'); do
+            echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
+            cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
+        done
+        cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
+        set +o pipefail
+
+    - name: Build Examples (LLVM Toolchain)
+      if: inputs.toolchain == 'llvm'
+      shell: bash
+      run: |
+        # TODO: only keep install dir of llvm!
+        # export PATH=$(pwd)/../llvm/bin/:$PATH
+        # export PATH=$SEAL5_LLVM_DIR/.seal5/build/${{ env.SEAL5_BUILD_CONFIG }}/bin/:$PATH
+        # chmod +x $SEAL5_LLVM_DIR/bin/*
+        set -o pipefail
+        cd ${{ inputs.examples-dir }}
+        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ inputs.xlen }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} 2>&1 | tee -a etiss_sw_build_out.txt
+        for prog in $(echo ${{ inputs.PROGS }} | sed 's/,/ /g'); do
+            echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
+            cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
+        done
+        cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
+        set +o pipefail
