@@ -556,20 +556,6 @@ jobs:
           arch: ${{ matrix.config.ARCH }}
           abi: ${{ matrix.config.ABI }}
           progs: ${{ env.PROGS }}
-      - name: Add ETISS SW Build Summary (Failure)
-        # if: ${{ steps.etiss-build-sw-llvm.outcome == 'failure' || steps.etiss-build-sw-gcc.outcome == 'failure' }}
-        if: ${{ steps.build-examples.outcome == 'failure' }}
-        run: |
-          echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
-          echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-          echo "**ETISS SW Build Outputs:**" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat etiss_riscv_examples/etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          # echo >> $GITHUB_STEP_SUMMARY
-          exit 1
       - name: Upload Prebuilt Examples
         uses: actions/upload-artifact@v4
         with:

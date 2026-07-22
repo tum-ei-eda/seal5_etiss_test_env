@@ -45,6 +45,7 @@ runs:
     # TODO merge GCC & GCC step!
     - name: Build Examples (GCC Toolchain)
       if: inputs.toolchain == 'gcc'
+      id: build-examples-gcc
       shell: bash
       run: |
         set -o pipefail
@@ -59,6 +60,7 @@ runs:
 
     - name: Build Examples (LLVM Toolchain)
       if: inputs.toolchain == 'llvm'
+      id: build-examples-llvm
       shell: bash
       run: |
         # TODO: only keep install dir of llvm!
@@ -74,3 +76,16 @@ runs:
         done
         cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
         set +o pipefail
+    - name: Add ETISS SW Build Summary (Failure)
+      if: ${{ steps.build-examples-gcc.outcome == 'failure' || steps.build-examples-llvm.outcome == 'failure' }}
+      run: |
+        echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "**ETISS SW Build Outputs:**" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        cat etiss_riscv_examples/etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        # echo >> $GITHUB_STEP_SUMMARY
+        exit 1
