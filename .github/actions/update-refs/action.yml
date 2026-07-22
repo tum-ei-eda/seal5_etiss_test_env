@@ -84,7 +84,7 @@ runs:
         git add riscv-coredsl-extensions
         if [[ "${{ inputs.enable-summary }}" == "true" ]]
         then
-            echo "Updated Ref: riscv-coredsl-extensions -> ${{ iyynputs.ref }}" >> $GITHUB_STEP_SUMMARY
+            echo "Updated Ref: riscv-coredsl-extensions -> ${{ inputs.ref }}" >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Update M2-ISA-R ref
