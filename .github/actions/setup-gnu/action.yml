@@ -1,0 +1,47 @@
+---
+name: 'Setup GNU Toolchain'
+description: 'Download RISC-V GNU Toolchain'
+inputs:
+  install-dir:
+    description: 'Install directory'
+    required: true
+    default: ''
+  version:
+    description: 'TC version'
+    required: true
+    default: '?'
+  name:
+    description: 'TC name'
+    required: true
+    default: '?'
+  variant:
+    description: 'TC variant'
+    required: true
+    default: '?'
+  os:
+    description: 'Operating System'
+    required: true
+    default: '?'
+  enable-summary:
+    description: 'Enable Job Summary'
+    required: true
+outputs: {}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Download RISCV-GNU-Toolchain
+      if: ${{ inputs.enable-summary == 'true' }}
+      shell: bash
+      run: |
+        echo "GCC Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
+
+    - name: Download RISCV-GNU-Toolchain
+      shell: bash
+      run: |
+        mkdir ${{ inputs.install-dir }}
+        wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ inputs.version }}/${{ inputs.name }}-${{ inputs.os }}-${{ inputs.variant }}.tar.xz -O ${{ inputs.install-dir }}.tar.xz
+        cd ${{ inputs.install-dir }}
+        tar xvf ${{ inputs.install-dir }}.tar.xz
+        cd ..
+        rm ${{ inputs.install-dir }}.tar.xz
