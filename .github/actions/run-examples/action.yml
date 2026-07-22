@@ -1,0 +1,89 @@
+---
+name: 'Run SW Examples'
+description: 'Simulate Example Target SW'
+inputs:
+  examples-dir:
+    description: 'Examples SW directory'
+    required: true
+    default: ''
+  progs:
+    description: 'Comma-separated list of programs'
+    required: true
+    default: 'hello_world'
+  etiss-arch:
+    description: 'Name of used ETISS CPU arch'
+    required: true
+    default: '?'
+  etiss_ref:
+    description: 'ETISS SHA'
+    required: true
+    default: '?'
+  arch:
+    description: 'Value for -march=?'
+    required: true
+    default: '?'
+  abi:
+    description: 'Value for -mabi=?'
+    required: true
+    default: '?'
+  jit:
+    description: 'ETISS JIT'
+    required: true
+    default: 'TCC'
+  enable-summary:
+    description: 'Enable Job Summary'
+    required: true
+outputs: {}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run S4E Examples on ${{ inputs.etiss_arch }}
+      id: run-examples
+      shell: bash
+      run: |
+        set -o pipefail
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        chmod +x etiss/build/install/bin/bare_etiss_processor
+        for prog in $(echo ${{ inputs.progs }} | sed 's/,/ /g'); do
+            echo "--- Program: $prog ---" | tee -a etiss_sw_run_out.txt
+            timeout 5m ${{ inputs.etiss-install-dir }}/bin/bare_etiss_processor -i${{ inputs.examples-dir}}/build/install/ini/$prog.ini --arch.cpu=${{ inputs.etiss-arch }} --jit.type=${{ inputs.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
+            if [[ -f stats.json ]]
+            then
+                jq -s "[.[] + {prog: \"$prog\", toolchain: \"${{ matrix.toolchain }}\", jit: \"${{ inputs.jit}}\", etiss_arch: \"${{ inputs.etiss-arch }}\", arch: \"${{ inputs.arch }}\", abi: \"${{ inputs.abi }}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ inputs.env_ref }}\", etiss_sha: \"${{ inputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
+                rm stats.json
+            fi
+        done
+        jq -s '[.[][]?]' stats*.json > combined_stats.json
+        set +o pipefail
+        ./scripts/json_metrics2markdown.sh combined_stats.json > combined_stats.md
+
+    - name: Add Run Examples Summary (Success)
+      if: success()
+      shell: bash
+      run: |
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "OK :heavy_check_mark:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+
+    - name: Add Run Examples Summary (Failure)
+      # if: failure()
+      if: ${{ steps.run-examples.outcome != 'success' }}
+      shell: bash
+      run: |
+        echo "### Status" >> $GITHUB_STEP_SUMMARY
+        echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "ETISS Sim Outputs:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        cat out.txt >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+        echo "- - -" >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
+    - name: Add ETISS SW Run Summary (Metrics)
+      if: ${{ steps.run-examples.outcome == 'success' }}
+      run: |
+        echo "### ETISS SW Run Metrics" >> $GITHUB_STEP_SUMMARY
+        cat combined_stats.md >> $GITHUB_STEP_SUMMARY
+        echo >> $GITHUB_STEP_SUMMARY
