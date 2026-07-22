@@ -3,7 +3,7 @@ name: Default (RV32/RV64) Flow
 on:
   workflow_dispatch: {}
   repository_dispatch:
-    types: [cdsl-event, etiss-event, m2isar-event, examples-event]
+    types: [cdsl-event, etiss-event, m2isar-event, examples-event, riscv-tests-event, etiss-riscv-tests-event]
   push:
     branches: [main]
     paths:
