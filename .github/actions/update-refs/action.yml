@@ -51,6 +51,7 @@ runs:
   steps:
     - name: Add Summary Header
       if: ${{ inputs.enable-summary == 'true' }}
+      shell: bash
       run: |
         echo "### Summary" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
@@ -187,5 +188,6 @@ runs:
 
     - name: Update Summary (Changed Files)
       if: ${{ inputs.enable-summary == 'true' }}
+      shell: bash
       run: |
         echo NUM_CHANGED=${{ steps.count-files.outputs.NUM_CHANGED }}

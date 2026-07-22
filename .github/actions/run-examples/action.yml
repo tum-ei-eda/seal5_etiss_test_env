@@ -83,6 +83,7 @@ runs:
         echo >> $GITHUB_STEP_SUMMARY
     - name: Add ETISS SW Run Summary (Metrics)
       if: ${{ steps.run-examples.outcome == 'success' }}
+      shell: bash
       run: |
         echo "### ETISS SW Run Metrics" >> $GITHUB_STEP_SUMMARY
         cat combined_stats.md >> $GITHUB_STEP_SUMMARY
