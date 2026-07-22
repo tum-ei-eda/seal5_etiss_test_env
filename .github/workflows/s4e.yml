@@ -229,7 +229,7 @@ jobs:
           echo "s4e_cdsl_ref=$(git -C riscv-coredsl-extensions rev-parse HEAD)" >> $GITHUB_OUTPUT
       - name: Download Cached ETISS Binaries (S4E)
         id: cache-etiss
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-etiss-binaries
         with:
@@ -274,7 +274,7 @@ jobs:
           cmake --install etiss/build
       - name: Download Cached Seal5 Binaries
         id: cache-seal5
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-seal5-binaries
         with:
@@ -327,7 +327,7 @@ jobs:
         id: date
       - name: Download Cached GCC Binaries
         id: cache-gcc
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-gcc-binaries
         with:

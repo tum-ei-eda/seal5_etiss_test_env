@@ -154,6 +154,7 @@ jobs:
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Upload Refs Patch
+        if: ${{ steps.update-refs.outputs.num-changed != '0' }}
         uses: actions/upload-artifact@v7
         with:
           name: refs-patch
@@ -210,7 +211,7 @@ jobs:
           rm update_refs.patch
       - name: Cache M2-ISA-R Model
         id: cache-m2isar-model
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-m2isar-model
         with:
@@ -243,7 +244,7 @@ jobs:
             etiss_arch_riscv/gen_model
       - name: Cache ETISS Patch
         id: cache-etiss-patch
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-etiss-patch
         with:
@@ -330,7 +331,7 @@ jobs:
       - name: Download Cached ETISS Binaries
         if: success()
         id: cache-etiss
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-etiss-binaries
         with:
@@ -442,7 +443,7 @@ jobs:
       - name: Cache Examples
         if: success()
         id: cache-examples
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-examples
         with:
@@ -452,7 +453,7 @@ jobs:
       - name: Download Cached GCC Binaries
         if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && success() }}
         id: cache-gcc
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-gcc-binaries
         with:
@@ -486,7 +487,7 @@ jobs:
       - name: Download Cached LLVM Binaries
         if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm' && success() }}
         id: cache-llvm
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-llvm-binaries
         with:
@@ -751,7 +752,7 @@ jobs:
       - name: Cache Examples
         if: success()
         id: cache-riscv-tests
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-riscv-tests
         with:
@@ -761,7 +762,7 @@ jobs:
       - name: Download Cached GCC Binaries
         if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && success() }}
         id: cache-gcc
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         env:
           cache-name: cache-gcc-binaries
         with:
