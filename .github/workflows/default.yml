@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/default.yml
+      - .github/actions
       - etiss
       - etiss_riscv_examples
       - M2-ISA-R
