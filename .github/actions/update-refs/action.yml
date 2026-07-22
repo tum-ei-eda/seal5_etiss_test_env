@@ -58,6 +58,7 @@ runs:
 
     - name: Update Summary (Trigger)
       if: ${{ inputs.enable-summary == 'true' }}
+      shell: bash
       run: |
         echo "Event: ${{github.event_name }}" >> $GITHUB_STEP_SUMMARY
         echo "Triggered from: ${{ github.event.client_payload.from }}" >> $GITHUB_STEP_SUMMARY
