@@ -1546,7 +1546,7 @@ jobs:
 
           edit-mode: replace
           repository: tum-ei-eda/etiss
-          token: ${{ secrets.GITHUB_TOKEN  }}
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
       - name: Create PR comment
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment2.outputs.comment-id == '' }}
         uses: peter-evans/create-or-update-comment@v5
@@ -1571,4 +1571,4 @@ jobs:
 
           # edit-mode: replace
           repository: tum-ei-eda/etiss
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
