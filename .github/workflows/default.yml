@@ -339,10 +339,15 @@ jobs:
             }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.config.ETISS_USE_COREDSL_COVERAGE }}-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}
       - name: Install APT dependencies
+        timeout-minutes: 5
         run: |
-          sudo apt update
-          sudo apt remove -y llvm-* clang-* libllvm* libclang*
-          sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev llvm-15-dev libclang-15-dev clang-15
+          date --iso-8601=seconds
+          sudo apt update -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+          date --iso-8601=seconds
+          sudo apt remove -y llvm-* clang-* libllvm* libclang* -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+          date --iso-8601=seconds
+          sudo apt -qq install -y cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev llvm-15-dev libclang-15-dev clang-15 -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+          date --iso-8601=seconds
       - name: Setup ccache
         if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
         uses: hendrikmuhs/ccache-action@v1
