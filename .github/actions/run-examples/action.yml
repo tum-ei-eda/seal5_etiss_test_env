@@ -6,12 +6,20 @@ inputs:
     description: 'Examples SW directory'
     required: true
     default: ''
+  etiss-install-dir:
+    description: 'ETISS Install directory'
+    required: true
+    default: ''
   progs:
     description: 'Comma-separated list of programs'
     required: true
     default: 'hello_world'
   etiss-arch:
     description: 'Name of used ETISS CPU arch'
+    required: true
+    default: '?'
+  env_ref:
+    description: 'Env SHA'
     required: true
     default: '?'
   etiss_ref:
@@ -30,6 +38,10 @@ inputs:
     description: 'ETISS JIT'
     required: true
     default: 'TCC'
+  toolchain:
+    description: 'Toolchain (gcc/llvm)'
+    required: true
+    default: 'gcc'
   enable-summary:
     description: 'Enable Job Summary'
     required: true
