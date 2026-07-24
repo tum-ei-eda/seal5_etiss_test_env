@@ -135,6 +135,7 @@ runs:
       shell: bash
       run: |
         git -C etiss checkout ${{ inputs.ref }}
+        git -C etiss submodule update --init --recursive
         git add etiss
         if [[ "${{ inputs.enable-summary }}" == "true" ]]
         then
