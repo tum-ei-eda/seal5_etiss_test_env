@@ -132,10 +132,10 @@ jobs:
       #   run: |
       #     NUM_STAGED=$(git diff --cached --numstat | wc -l 2>&1)
       #     echo "NUM_CHANGED=$NUM_STAGED" >> $GITHUB_OUTPUT
-      - name: Update Submodule Refs
+      - name: Update and Check Submodule Refs
         id: update-refs
         uses: ./.github/actions/update-refs
-        if: github.event.client_payload.from != ''
+        # if: github.event.client_payload.from != ''
         with:
           trigger: ${{ github.event.client_payload.from }}
           ref: ${{ github.event.client_payload.ref }}
