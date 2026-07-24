@@ -50,11 +50,11 @@ permissions:
 jobs:
   check:
     outputs:
-      etiss_ref: ${{ steps.refs.outputs.etiss_ref }}
-      etiss_riscv_tests_ref: ${{ steps.refs.outputs.etiss_riscv_tests_ref }}
-      examples_ref: ${{ steps.refs.outputs.examples_ref }}
-      m2isar_ref: ${{ steps.refs.outputs.m2isar_ref }}
-      cdsl_ref: ${{ steps.refs.outputs.cdsl_ref }}
+      etiss_ref: ${{ steps.update-refs.outputs.etiss_ref }}
+      etiss_riscv_tests_ref: ${{ steps.update-refs.outputs.etiss_riscv_tests_ref }}
+      examples_ref: ${{ steps.update-refs.outputs.examples_ref }}
+      m2isar_ref: ${{ steps.update-refs.outputs.m2isar_ref }}
+      cdsl_ref: ${{ steps.update-refs.outputs.cdsl_ref }}
       num_changed: ${{ steps.update-refs.outputs.num_changed }}
     strategy:
       fail-fast: false
