@@ -557,6 +557,7 @@ jobs:
         with:
           enable-summary: true
           examples-dir: ${{ github.workspace }}/etiss_riscv_examples
+          llvm-dir: ${{ github.workspace }}/llvm
           gnu-dir: ${{ github.workspace }}/gnu
           gnu-name: ${{ matrix.config.RISCV_GCC_NAME }}
           toolchain: ${{ matrix.TOOLCHAIN }}

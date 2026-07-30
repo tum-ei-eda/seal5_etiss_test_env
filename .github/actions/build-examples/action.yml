@@ -6,8 +6,16 @@ inputs:
     description: 'Examples SW directory'
     required: true
     default: ''
+  llvm-dir:
+    description: 'LLVM TC install directory'
+    required: false
+    default: ''
   gnu-dir:
     description: 'GNU TC install directory'
+    required: true
+    default: ''
+  gnu-name:
+    description: 'GNU TC name'
     required: true
     default: ''
   toolchain:
@@ -64,7 +72,7 @@ runs:
       shell: bash
       run: |
         # TODO: only keep install dir of llvm!
-        # export PATH=$(pwd)/../llvm/bin/:$PATH
+        export PATH=${{ inputs.llvm-dir }}/bin/:$PATH
         # export PATH=$SEAL5_LLVM_DIR/.seal5/build/${{ env.SEAL5_BUILD_CONFIG }}/bin/:$PATH
         # chmod +x $SEAL5_LLVM_DIR/bin/*
         set -o pipefail
