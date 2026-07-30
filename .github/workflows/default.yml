@@ -39,7 +39,7 @@ env:
   ETISS_TOP: top
   ETISS_FILL_MODE: auto
   GDB_XML_DESCR: "RV32IMACFD:../etiss/ArchImpl/RV32IMACFD/xml/target.xml,RV64IMACFD:../etiss/ArchImpl/RV64IMACFD/xml/target.xml"
-  PROGS: hello_world,dhry,tvm_vww,embench_crc32
+  PROGS: hello_world,dhry,tvm_vww,embench_crc32,example_cpp
   ETISS_BRANCH_NAME: auto_update_riscv_archlib
   DEBIAN_FRONTEND: noninteractive
 permissions:
