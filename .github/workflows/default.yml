@@ -1266,7 +1266,7 @@ jobs:
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         run: |
           git add .
-          git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}"
+          git commit -m "Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}\n\nCreated by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
       - name: Push changes to PR branch
         if: ${{ steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' && needs.check.outputs.num_changed != '0' && success() && github.event.client_payload.is_pr != 'true' }}
         uses: ad-m/github-push-action@master
@@ -1283,8 +1283,10 @@ jobs:
         if: ${{ steps.check_branch.outputs.PR_EXISTS == '0' && needs.check.outputs.num_changed != '0' && success() && github.event.client_payload.is_pr != 'true' }}
         uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: Auto-Update ${{ github.event.client_payload.from }} submodule
-            to ${{ github.event.client_payload.ref }}
+          commit-message: |
+            Auto-Update ${{ github.event.client_payload.from }} submodule to ${{ github.event.client_payload.ref }}
+
+            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           title: Auto-Update ${{ github.event.client_payload.from }} submodule
           branch: pr_update_${{ github.event.client_payload.from }}
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
@@ -1483,7 +1485,7 @@ jobs:
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' }}
         run: |
           cd etiss
-          git commit -m "Auto-Update generated architectures"
+          git commit -m "Auto-Update generated architectures\n\nCreated by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           cd -
       - name: Push changes to PR branch
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' }}
@@ -1515,7 +1517,7 @@ jobs:
             Automated changes by [create-pull-request](https://github.com/peter-evans/create-pull-request) GitHub action
 
 
-            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       - name: Find Comment
         uses: peter-evans/find-comment@v3
         id: find_comment
