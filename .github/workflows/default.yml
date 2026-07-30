@@ -450,7 +450,7 @@ jobs:
         with:
           path: etiss_riscv_examples/build/install
           key: examples-binaries-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
-            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
+            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}-${{ env.PROGS }}
       - name: Download Cached GCC Binaries
         if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && success() }}
         id: cache-gcc
@@ -563,7 +563,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: examples-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
-            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
+            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}-${{ env.PROGS }}
           path: etiss_riscv_examples/build/install
   run_examples:
     outputs:
@@ -627,7 +627,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: examples-install-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
-            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}
+            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}-${{ env.PROGS }}
           path: etiss_riscv_examples/build/install
       - name: Download Prebuilt ETISS
         uses: actions/download-artifact@v8
@@ -707,6 +707,11 @@ jobs:
           path: |
             combined_stats.json
             combined_stats.md
+      - name: Fail or error
+        if: ${{ steps.run-examples.outcome != 'success' }}
+        run: |
+          echo "Run Examples returned non-zero exit code"
+          exit 1
   setup_tests:
     outputs:
       output1: ${{ steps.step1.outputs.test }}
