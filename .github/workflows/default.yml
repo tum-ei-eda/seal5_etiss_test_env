@@ -441,6 +441,12 @@ jobs:
           git reset --soft HEAD~1
           git restore --staged .
           rm update_refs.patch
+
+      - name: Generate programs cache key
+        shell: bash
+        run: |
+          echo "PROGS_CACHE_KEY=$(printf '%s' "$PROGS" | sha256sum | cut -c1-16)" >> "$GITHUB_ENV"
+
       - name: Cache Examples
         if: success()
         id: cache-examples
@@ -450,7 +456,7 @@ jobs:
         with:
           path: etiss_riscv_examples/build/install
           key: examples-binaries-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.examples_ref
-            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}-${{ env.PROGS }}
+            }}-${{ matrix.config.ARCH }}-${{ matrix.config.ABI }}-${{ matrix.toolchain }}-${{ env.PROGS_CACHE_KEY }}
       - name: Download Cached GCC Binaries
         if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && success() }}
         id: cache-gcc
