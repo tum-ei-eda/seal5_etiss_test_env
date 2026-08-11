@@ -552,7 +552,6 @@ jobs:
       - name: Build Examples
         if: ${{ ((steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm') || (steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'gcc')) && success() }}
         id: build-examples
-        continue-on-error: true
         uses: ./.github/actions/build-examples
         with:
           enable-summary: true
