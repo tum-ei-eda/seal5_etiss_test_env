@@ -54,7 +54,7 @@ runs:
       id: cmake_preset
       shell: bash
       run: |
-        build_type_lower="${{ inputs.build_type }}"
+        build_type_lower="${{ inputs.build-type }}"
         build_type_lower="${build_type_lower,,}"
         preset="rv${{ inputs.xlen }}-${{ inputs.toolchain }}-${build_type_lower}"
         echo "name=${preset}" >> "$GITHUB_OUTPUT"
