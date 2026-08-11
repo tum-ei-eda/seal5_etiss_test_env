@@ -50,42 +50,36 @@ outputs: {}
 runs:
   using: "composite"
   steps:
-    # TODO merge GCC & GCC step!
-    - name: Build Examples (GCC Toolchain)
-      if: inputs.toolchain == 'gcc'
-      id: build-examples-gcc
+    - name: Set CMake preset
+      id: cmake_preset
       shell: bash
       run: |
-        set -o pipefail
-        cd ${{ inputs.examples-dir }}
-        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ inputs.xlen }}gc-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} 2>&1 | tee -a etiss_sw_build_out.txt
-        for prog in $(echo ${{ inputs.PROGS }} | sed 's/,/ /g'); do
-            echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
-            cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
-        done
-        cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
-        set +o pipefail
+        build_type_lower="${{ inputs.build_type }}"
+        build_type_lower="${build_type_lower,,}"
+        preset="rv${{ inputs.xlen }}-${{ inputs.toolchain }}-${build_type_lower}"
+        echo "name=${preset}" >> "$GITHUB_OUTPUT"
 
-    - name: Build Examples (LLVM Toolchain)
-      if: inputs.toolchain == 'llvm'
-      id: build-examples-llvm
+    - name: Build Examples
+      id: build-examples
       shell: bash
       run: |
-        # TODO: only keep install dir of llvm!
-        export PATH=${{ inputs.llvm-dir }}/bin/:$PATH
-        # export PATH=$SEAL5_LLVM_DIR/.seal5/build/${{ env.SEAL5_BUILD_CONFIG }}/bin/:$PATH
-        # chmod +x $SEAL5_LLVM_DIR/bin/*
+        # export PATH=${{ inputs.llvm-dir }}/bin/:$PATH
         set -o pipefail
         cd ${{ inputs.examples-dir }}
-        cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=rv${{ inputs.xlen }}gc-llvm-toolchain.cmake -DCMAKE_BUILD_TYPE=${{ inputs.build-type }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} 2>&1 | tee -a etiss_sw_build_out.txt
+        if [[ "${{ inputs.toolchain }}" == "llvm" ]]
+        then
+            cmake -S . -B build --preset ${{ steps.cmake_preset.outputs.name }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} -DLLVM_DIR=${{ inputs.llvm_dir }} 2>&1 | tee -a etiss_sw_build_out.txt
+        else
+            cmake -S . -B build --preset ${{ steps.cmake_preset.outputs.name }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} 2>&1 | tee -a etiss_sw_build_out.txt
+        fi
         for prog in $(echo ${{ inputs.PROGS }} | sed 's/,/ /g'); do
             echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
-            cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
+            cmake --build build --preset ${{ steps.cmake_preset.outputs.name }} -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
         done
         cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
         set +o pipefail
     - name: Add ETISS SW Build Summary (Failure)
-      if: ${{ steps.build-examples-gcc.outcome == 'failure' || steps.build-examples-llvm.outcome == 'failure' }}
+      if: ${{ steps.build-examples.outcome == 'failure' }}
       shell: bash
       run: |
         echo "### ETISS SW Build Status" >> $GITHUB_STEP_SUMMARY
