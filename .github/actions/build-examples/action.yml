@@ -74,7 +74,7 @@ runs:
         fi
         for prog in $(echo ${{ inputs.PROGS }} | sed 's/,/ /g'); do
             echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
-            cmake --build build --preset ${{ steps.cmake_preset.outputs.name }} -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
+            cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
         done
         cmake --install build 2>&1 | tee -a etiss_sw_build_out.txt
         set +o pipefail
