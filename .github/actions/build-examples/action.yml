@@ -68,7 +68,7 @@ runs:
         cd ${{ inputs.examples-dir }}
         if [[ "${{ inputs.toolchain }}" == "llvm" ]]
         then
-            cmake -S . -B build --preset ${{ steps.cmake_preset.outputs.name }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} -DLLVM_DIR=${{ inputs.llvm_dir }} 2>&1 | tee -a etiss_sw_build_out.txt
+            cmake -S . -B build --preset ${{ steps.cmake_preset.outputs.name }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} -DLLVM_DIR=${{ inputs.llvm-dir }} 2>&1 | tee -a etiss_sw_build_out.txt
         else
             cmake -S . -B build --preset ${{ steps.cmake_preset.outputs.name }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} 2>&1 | tee -a etiss_sw_build_out.txt
         fi
