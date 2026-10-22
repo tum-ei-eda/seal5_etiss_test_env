@@ -1497,7 +1497,7 @@ jobs:
           git fetch origin master
 
           echo "Switching to current master"
-          git switch -C pr_work origin/master
+          git switch -C master origin/master
 
           echo "Restoring generated file contents"
           git restore \
