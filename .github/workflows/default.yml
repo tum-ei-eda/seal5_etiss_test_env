@@ -329,6 +329,18 @@ jobs:
           git reset --soft HEAD~1
           git restore --staged .
           rm update_refs.patch
+      - name: Download generated ETISS patch
+        uses: actions/download-artifact@v8
+        with:
+          name: etiss-patch-${{ matrix.config.ETISS_ARCH }}
+          path: generated-etiss-patch
+      - name: Apply generated ETISS patch
+        working-directory: etiss
+        run: |
+          # An empty patch means the checked-out architecture is already current.
+          if [[ -s ../generated-etiss-patch/etiss.patch ]]; then
+            git apply ../generated-etiss-patch/etiss.patch
+          fi
       - name: Download Cached ETISS Binaries
         if: success()
         id: cache-etiss
@@ -337,10 +349,11 @@ jobs:
           cache-name: cache-etiss-binaries
         with:
           path: etiss/build/install
-          key: etiss-binaries-default-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
+          # Exclude old unpatched builds and tie binaries to the generated contents.
+          key: etiss-binaries-default-v2-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
             }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.config.ETISS_USE_COREDSL_COVERAGE }}-${{ needs.check.outputs.etiss_riscv_tests_ref
-            }}
+            }}-${{ hashFiles('generated-etiss-patch/etiss.patch') }}
       - name: Install APT dependencies
         timeout-minutes: 5
         run: |
