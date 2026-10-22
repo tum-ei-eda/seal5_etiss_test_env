@@ -1377,174 +1377,204 @@ jobs:
         with:
           branch: stats
           # force: true
+
   publish:
     if: ${{ github.event.client_payload.is_pr != 'true' && github.event.client_payload.from == '' }}
     needs: [check, setup_etiss, finalize, merge_coverage, stats]
     runs-on: ubuntu-latest
+
     steps:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.10"
+
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+
       - name: Download Artifacts
         uses: actions/download-artifact@v8
         with:
           path: artifacts/
           github-token: ${{ github.token }}
-      - name: Check patch existance
+
+      - name: Check patch existence
         id: check_patch
+        shell: bash
         run: |
+          echo "Available artifacts:"
           ls artifacts
           ls artifacts/*
-          ls artifacts/etiss-patch-*/etiss.patch && PATCH_EXISTS=1 || PATCH_EXISTS=0
-          echo "PATCH_EXISTS=$PATCH_EXISTS" >> $GITHUB_OUTPUT
-          echo "COVERAGE_SUMMARY:"
-          cat artifacts/coverage-info-merged/coverage_out.txt
-          echo 'COVERAGE_SUMMARY<<EOF' >> $GITHUB_OUTPUT
-          cat artifacts/coverage-info-merged/coverage_out.txt >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
-          echo 'SIM_STATS<<EOF' >> $GITHUB_OUTPUT
-          cat artifacts/stats-merged/stats_merged.md >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
-          echo 'TEST_RESULTS<<EOF' >> $GITHUB_OUTPUT
-          cat artifacts/test-results-merged/test_results_merged.md >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
+
+          if compgen -G "artifacts/etiss-patch-*/etiss.patch" > /dev/null; then
+            PATCH_EXISTS=1
+          else
+            PATCH_EXISTS=0
+          fi
+
+          echo "PATCH_EXISTS=$PATCH_EXISTS" >> "$GITHUB_OUTPUT"
+
+          {
+            echo 'COVERAGE_SUMMARY<<EOF'
+            cat artifacts/coverage-info-merged/coverage_out.txt
+            echo 'EOF'
+
+            echo 'SIM_STATS<<EOF'
+            cat artifacts/stats-merged/stats_merged.md
+            echo 'EOF'
+
+            echo 'TEST_RESULTS<<EOF'
+            cat artifacts/test-results-merged/test_results_merged.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      # Checkout the exact ETISS revision used to generate
+      # and test the architecture patches.
       - name: Clone ETISS
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS == '1' }}
         uses: actions/checkout@v7
         with:
           repository: tum-ei-eda/etiss
           path: etiss
-          # Apply artifacts to the exact revision used to generate and test them.
           ref: ${{ needs.check.outputs.etiss_ref }}
           fetch-depth: 0
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-      - name: Check if PR Branch already exists
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
-        env:
-          GH_TOKEN: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-        id: check_branch
+          persist-credentials: true
+
+      # Apply the patches to the pinned revision, not master.
+      # Save the generated contents in a temporary commit.
+      - name: Apply patches to pinned ETISS revision
+        if: ${{ steps.check_patch.outputs.PATCH_EXISTS == '1' }}
+        id: apply_patches
+        shell: bash
         run: |
+          set -euo pipefail
           cd etiss
-          CHECK_BRANCH=$(git ls-remote --heads origin ${{ env.ETISS_BRANCH_NAME }} | wc -l 2>&1)
-          echo "BRANCH_EXISTS=$CHECK_BRANCH" >> $GITHUB_OUTPUT  # 1 if branch exists, 0 if not
-          prs=$(gh pr list -B master -H ${{ env.ETISS_BRANCH_NAME }})
-          echo Size of PRS ARRAY: ${#prs[@]}
-          echo Length of PRS[0] string: ${#prs[0]}
-          if ((${#prs[@]} > 0 && ${#prs[0]} != 0 )); then
-            echo skipping PR creation
-            echo "PR_EXISTS=1" >> $GITHUB_OUTPUT
-            PR_ID=$(echo ${prs[0]} | cut -d' ' -f1)
-            echo PR_ID=$PR_ID
-            echo "PR_ID=$PR_ID" >> $GITHUB_OUTPUT
-          else
-            echo "PR_EXISTS=0" >> $GITHUB_OUTPUT
-          fi
-          cd -
-      - name: Switch to PR Branch
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' }}
-        run: |
-          cd etiss
-          git fetch --all
-          git branch -d -r origin/${{ env.ETISS_BRANCH_NAME }}
-          git checkout -b ${{ env.ETISS_BRANCH_NAME }} HEAD
-          cd -
-      - name: Apply Patches
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
-        run: |
-          cd etiss
+
+          echo "Pinned ETISS revision:"
+          git rev-parse HEAD
+
           for file in ../artifacts/etiss-patch-*/etiss.patch; do
             echo "Applying patch: $file"
-            git apply $file
+            git apply "$file"
           done
-          git add .
-          # git commit -m 'Apply Generated Patches'
-          cd -
-      - name: Check Diff
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
-        id: check_diff
-        run: |
-          cd etiss
-          diff_out=$(git diff -w --ignore-blank-lines -I"Generated on" origin/master)
-          echo exit_code=$?
-          echo "diff_out=$diff_out"
-          length=$(echo -n "$diff_out" | wc -l)
-          echo "length=$length"
-          if [[ "$length" == "0" ]]; then
-            echo "Diff is empty"
-            DIFF_EMPTY=1
-          else
-            echo "Diff is not empty"
-            DIFF_EMPTY=0
+
+          git add -A
+
+          # Store all paths modified by the patches.
+          # NUL separators safely handle unusual filenames.
+          git diff --cached --name-only -z > ../generated-paths.bin
+
+          if git diff --cached --quiet; then
+            echo "No generated changes against pinned revision"
+            echo "HAS_CHANGES=0" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo "DIFF_EMPTY=$DIFF_EMPTY" >> $GITHUB_OUTPUT
-          cd -
-      # TODO: compare new patch with existing one?
-      - name: Commit Refs to PR branch
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' }}
+
+          git diff --cached --stat
+
+          git commit -m "Temporary generated architectures"
+
+          echo "GENERATED_SHA=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "HAS_CHANGES=1" >> "$GITHUB_OUTPUT"
+
+      # Construct the PR contents on the current master.
+      # Copy generated file contents instead of reapplying
+      # the patches, which may no longer apply to master.
+      - name: Transfer generated changes onto master
+        if: ${{ steps.apply_patches.outputs.HAS_CHANGES == '1' }}
+        id: prepare_pr
+        shell: bash
+        env:
+          GENERATED_SHA: ${{ steps.apply_patches.outputs.GENERATED_SHA }}
         run: |
+          set -euo pipefail
           cd etiss
-          git commit -m "Auto-Update generated architectures\n\nCreated by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          cd -
-      - name: Push changes to PR branch
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.check_branch.outputs.BRANCH_EXISTS == '1' && steps.check_branch.outputs.PR_EXISTS == '1' }}
-        uses: ad-m/github-push-action@master
-        with:
-          branch: ${{ env.ETISS_BRANCH_NAME }}
-          force: true
-          github_token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-          directory: etiss
-          repository: tum-ei-eda/etiss
-      - name: Fetch all branches
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
-        run: |
-          cd etiss
-          git fetch --all
-          cd -
-      - name: Create Pull Request
+
+          echo "Fetching latest master"
+          git fetch origin master
+
+          echo "Switching to current master"
+          git switch -C pr_work origin/master
+
+          echo "Restoring generated file contents"
+          git restore \
+            --source="$GENERATED_SHA" \
+            --staged \
+            --worktree \
+            --pathspec-from-file=../generated-paths.bin \
+            --pathspec-file-nul
+
+          echo "Resulting changes against master:"
+          git diff --cached --stat
+
+          if git diff --cached --quiet; then
+            echo "No changes relative to master"
+            echo "HAS_CHANGES=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "Generated changes differ from master"
+            echo "HAS_CHANGES=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      # create-pull-request handles:
+      # - creating the PR branch when it does not exist
+      # - updating the existing PR branch
+      # - committing staged changes
+      # - opening a PR against master
+      - name: Create or Update Pull Request
         id: create_pr
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.check_branch.outputs.PR_EXISTS == '0' }}
+        if: ${{ steps.prepare_pr.outputs.HAS_CHANGES == '1' }}
         uses: peter-evans/create-pull-request@v7
         with:
-          commit-message: TODO
-          title: Auto-Update generated RISC-V architectures
-          branch: ${{ env.ETISS_BRANCH_NAME }}
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
           path: etiss
           base: master
-          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          branch: ${{ env.ETISS_BRANCH_NAME }}
+          commit-message: Auto-Update generated architectures
+          title: Auto-Update generated RISC-V architectures
+          delete-branch: false
           body: |
-            Automated changes by [create-pull-request](https://github.com/peter-evans/create-pull-request) GitHub action
+            Automated changes by [create-pull-request](https://github.com/peter-evans/create-pull-request) GitHub action.
 
+            Created by CI job:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      - name: Show PR result
+        if: ${{ steps.create_pr.outputs.pull-request-number != '' }}
+        run: |
+          echo "PR number: ${{ steps.create_pr.outputs.pull-request-number }}"
+          echo "PR URL: ${{ steps.create_pr.outputs.pull-request-url }}"
+          echo "PR operation: ${{ steps.create_pr.outputs.pull-request-operation }}"
+
+      # Only query PR comments when a valid PR number exists.
       - name: Find Comment
+        if: ${{ steps.create_pr.outputs.pull-request-number != '' }}
         uses: peter-evans/find-comment@v3
         id: find_comment
         with:
-          issue-number: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
+          issue-number: ${{ steps.create_pr.outputs.pull-request-number }}
           body-includes: Automated changes
           repository: tum-ei-eda/etiss
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
-      - name: Find Comment2
+
+      - name: Find Coverage Comment
+        if: ${{ steps.create_pr.outputs.pull-request-number != '' }}
         uses: peter-evans/find-comment@v3
         id: find_comment2
         with:
-          issue-number: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
+          issue-number: ${{ steps.create_pr.outputs.pull-request-number }}
           body-includes: Coverage Info
           repository: tum-ei-eda/etiss
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+
       - name: Update PR comment
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment2.outputs.comment-id != '' }}
+        if: ${{ steps.create_pr.outputs.pull-request-number != '' && steps.find_comment2.outputs.comment-id != '' }}
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.find_comment2.outputs.comment-id }}
           body: |
-            Automated changes by [create-pull-request](https://github.com/peter-evans/create-pull-request) GitHub action
-
             **Coverage Info:**
 
             ```
@@ -1559,16 +1589,17 @@ jobs:
 
             ${{ steps.check_patch.outputs.TEST_RESULTS }}
 
-            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
           edit-mode: replace
           repository: tum-ei-eda/etiss
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+
       - name: Create PR comment
-        if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' && steps.find_comment2.outputs.comment-id == '' }}
+        if: ${{ steps.create_pr.outputs.pull-request-number != '' && steps.find_comment2.outputs.comment-id == '' }}
         uses: peter-evans/create-or-update-comment@v5
         with:
-          issue-number: ${{ steps.check_branch.outputs.PR_ID || steps.create_pr.outputs.pull-request-number }}
+          issue-number: ${{ steps.create_pr.outputs.pull-request-number }}
           body: |
             **Coverage Info:**
 
@@ -1584,8 +1615,7 @@ jobs:
 
             ${{ steps.check_patch.outputs.TEST_RESULTS }}
 
-            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            Created by CI job: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
-          # edit-mode: replace
           repository: tum-ei-eda/etiss
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
