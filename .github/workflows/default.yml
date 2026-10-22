@@ -1379,7 +1379,7 @@ jobs:
           # force: true
   publish:
     if: ${{ github.event.client_payload.is_pr != 'true' && github.event.client_payload.from == '' }}
-    needs: [setup_etiss, finalize, merge_coverage, stats]
+    needs: [check, setup_etiss, finalize, merge_coverage, stats]
     runs-on: ubuntu-latest
     steps:
       - name: Set up Python
@@ -1419,6 +1419,9 @@ jobs:
         with:
           repository: tum-ei-eda/etiss
           path: etiss
+          # Apply artifacts to the exact revision used to generate and test them.
+          ref: ${{ needs.check.outputs.etiss_ref }}
+          fetch-depth: 0
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
       - name: Check if PR Branch already exists
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
@@ -1448,7 +1451,7 @@ jobs:
           cd etiss
           git fetch --all
           git branch -d -r origin/${{ env.ETISS_BRANCH_NAME }}
-          git checkout -b ${{ env.ETISS_BRANCH_NAME }} origin/master
+          git checkout -b ${{ env.ETISS_BRANCH_NAME }} HEAD
           cd -
       - name: Apply Patches
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' }}
@@ -1466,7 +1469,7 @@ jobs:
         id: check_diff
         run: |
           cd etiss
-          diff_out=$(git diff -w --ignore-blank-lines -I"Generated on" master)
+          diff_out=$(git diff -w --ignore-blank-lines -I"Generated on" origin/master)
           echo exit_code=$?
           echo "diff_out=$diff_out"
           length=$(echo -n "$diff_out" | wc -l)
@@ -1480,6 +1483,7 @@ jobs:
           fi
           echo "DIFF_EMPTY=$DIFF_EMPTY" >> $GITHUB_OUTPUT
           cd -
+      # TODO: compare new patch with existing one?
       - name: Commit Refs to PR branch
         if: ${{ steps.check_patch.outputs.PATCH_EXISTS != '0' && steps.check_diff.outputs.DIFF_EMPTY != '1' }}
         run: |
@@ -1510,7 +1514,7 @@ jobs:
           title: Auto-Update generated RISC-V architectures
           branch: ${{ env.ETISS_BRANCH_NAME }}
           path: etiss
-          # base: main
+          base: master
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
           body: |
             Automated changes by [create-pull-request](https://github.com/peter-evans/create-pull-request) GitHub action
