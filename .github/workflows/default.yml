@@ -360,6 +360,20 @@ jobs:
       - name: Install APT dependencies
         timeout-minutes: 15
         run: |
+          # The runner's Azure mirror can stream packages too slowly for the
+          # step timeout; Acquire::*::Timeout only detects idle connections.
+          # Cover both mirror+file runner images and legacy source lists.
+          for mirror_file in /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+            if [[ -f "$mirror_file" ]]; then
+              printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | sudo tee "$mirror_file" > /dev/null
+            fi
+          done
+          shopt -s nullglob
+          for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            if [[ -f "$source_file" ]]; then
+              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source_file"
+            fi
+          done
           sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
           sudo apt-get install -y --no-install-recommends cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev llvm-15-dev libclang-15-dev clang-15 -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
       - name: Setup ccache
