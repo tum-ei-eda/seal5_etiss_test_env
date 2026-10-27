@@ -1,0 +1,44 @@
+name: install-apt
+description: Install Ubuntu dependencies using the archive mirror with bounded connection waits.
+inputs:
+  packages:
+    description: Space-separated package names
+    required: true
+  remove-packages:
+    description: Optional space-separated package patterns to remove before installation
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+  - name: Install APT packages
+    shell: bash
+    env:
+      PACKAGES: ${{ inputs.packages }}
+      REMOVE_PACKAGES: ${{ inputs.remove-packages }}
+    run: |
+      # The runner's Azure mirror can stream packages too slowly for the
+      # step timeout; Acquire::*::Timeout only detects idle connections.
+      # Cover both mirror+file runner images and legacy source lists.
+      for mirror_file in /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
+        if [[ -f "$mirror_file" ]]; then
+          printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | sudo tee "$mirror_file" > /dev/null
+        fi
+      done
+      shopt -s nullglob
+      for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+        if [[ -f "$source_file" ]]; then
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source_file"
+        fi
+      done
+      sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+      if [[ -n "$REMOVE_PACKAGES" ]]; then
+        read -r -a remove_packages <<< "$REMOVE_PACKAGES"
+        sudo apt-get remove -y "${remove_packages[@]}"
+      fi
+      read -r -a packages <<< "$PACKAGES"
+      if (( ${#packages[@]} == 0 )); then
+        echo '::error::At least one APT package is required'
+        exit 1
+      fi
+      sudo apt-get install -y --no-install-recommends "${packages[@]}" -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30

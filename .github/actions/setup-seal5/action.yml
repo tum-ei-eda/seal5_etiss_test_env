@@ -1,0 +1,24 @@
+name: setup-seal5
+description: Install the checked-out Seal5 source in a virtual environment.
+inputs:
+  source-dir:
+    description: Seal5 source directory
+    default: seal5
+  python-version:
+    description: Python version
+    default: '3.10'
+runs:
+  using: composite
+  steps:
+  - name: Install Seal5
+    shell: bash
+    env:
+      SOURCE_DIR: ${{ inputs.source-dir }}
+      PYTHON_VERSION: ${{ inputs.python-version }}
+    run: |
+      set -e -o pipefail
+      cd "$SOURCE_DIR"
+      virtualenv -p "python$PYTHON_VERSION" venv
+      source venv/bin/activate
+      pip install -r requirements.txt
+      pip install -e .

@@ -181,14 +181,6 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install APT dependencies
-        run: |
-          sudo apt update
-          sudo apt -qq install -y python3-pip python3-venv
-      - name: Install Python dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install virtualenv
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -198,19 +190,18 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
+      - name: Install APT dependencies
+        timeout-minutes: 15
+        uses: ./.github/actions/install-apt
         with:
-          name: refs-patch
-      - name: Apply Refs patch
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+          packages: python3-pip python3-venv
+      - name: Install Python dependencies
         run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
+          python -m pip install --upgrade pip
+          pip install virtualenv
+      - name: Restore submodule refs
+        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
+        uses: ./.github/actions/restore-refs
       - name: Cache M2-ISA-R Model
         id: cache-m2isar-model
         uses: actions/cache@v6
@@ -226,11 +217,9 @@ jobs:
           echo "M2-ISA-R Model Cache Miss -> re-gen required" >> $GITHUB_STEP_SUMMARY
       - name: Setup M2-ISA-R
         if: ${{ (steps.cache-m2isar-model.outputs.cache-hit != 'true' || steps.cache-etiss-patch.outputs.cache-hit != 'true') && success() }}
-        run: |
-          cd M2-ISA-R
-          virtualenv -p python${{ matrix.python-version }} venv
-          source venv/bin/activate
-          pip install -e .
+        uses: ./.github/actions/setup-m2isar
+        with:
+          python-version: ${{ matrix.python-version }}
       - name: Run M2-ISA-R CoreDSL2 Parser
         if: ${{ steps.cache-m2isar-model.outputs.cache-hit != 'true' && success() }}
         run: |
@@ -319,19 +308,14 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
+      - name: Install APT dependencies
+        timeout-minutes: 15
+        uses: ./.github/actions/install-apt
         with:
-          name: refs-patch
-      - name: Apply Refs patch
+          packages: cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev llvm-15-dev libclang-15-dev clang-15
+      - name: Restore submodule refs
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
+        uses: ./.github/actions/restore-refs
       - name: Download generated ETISS patch
         uses: actions/download-artifact@v8
         with:
@@ -357,25 +341,6 @@ jobs:
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
             }}-${{ matrix.config.ETISS_ARCH }}-${{ matrix.config.ETISS_USE_COREDSL_COVERAGE }}-${{ needs.check.outputs.etiss_riscv_tests_ref
             }}-${{ hashFiles('generated-etiss-patch/etiss.patch') }}
-      - name: Install APT dependencies
-        timeout-minutes: 15
-        run: |
-          # The runner's Azure mirror can stream packages too slowly for the
-          # step timeout; Acquire::*::Timeout only detects idle connections.
-          # Cover both mirror+file runner images and legacy source lists.
-          for mirror_file in /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
-            if [[ -f "$mirror_file" ]]; then
-              printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | sudo tee "$mirror_file" > /dev/null
-            fi
-          done
-          shopt -s nullglob
-          for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
-            if [[ -f "$source_file" ]]; then
-              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source_file"
-            fi
-          done
-          sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
-          sudo apt-get install -y --no-install-recommends cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev llvm-15-dev libclang-15-dev clang-15 -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
       - name: Setup ccache
         if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
         uses: hendrikmuhs/ccache-action@v1
@@ -387,15 +352,13 @@ jobs:
         if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && success() }}
         id: etiss-compile
         continue-on-error: true
-        run: |
-          set -o pipefail
-          cd etiss/PluginImpl
-          ln -s ../../etiss_riscv_tests/FileLoggerPlugin .
-          cd ../..
-          cmake -S etiss -B etiss/build -DCMAKE_INSTALL_PREFIX=$(pwd)/etiss/build/install -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DETISS_USE_COREDSL_COVERAGE=${{ matrix.config.ETISS_USE_COREDSL_COVERAGE }} 2>&1 | tee -a etiss_compile_out.txt
-          cmake --build etiss/build -j$(nproc) 2>&1 | tee -a etiss_compile_out.txt
-          cmake --install etiss/build 2>&1 | tee -a etiss_compile_out.txt
-          set +o pipefail
+        uses: ./.github/actions/build-etiss
+        with:
+          build-type: ${{ env.BUILD_TYPE }}
+          compiler-launcher: sccache
+          coredsl-coverage: ${{ matrix.config.ETISS_USE_COREDSL_COVERAGE }}
+          filelogger-plugin-dir: etiss_riscv_tests/FileLoggerPlugin
+          log-file: etiss_compile_out.txt
       - name: Add ETISS Compile Summary (Failure)
         if: ${{ steps.cache-etiss.outputs.cache-hit != 'true' && steps.etiss-compile.outcome != 'success' }}
         run: |
@@ -453,20 +416,9 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
+      - name: Restore submodule refs
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
-        with:
-          name: refs-patch
-      - name: Apply Refs patch
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
-
+        uses: ./.github/actions/restore-refs
       - name: Generate programs cache key
         shell: bash
         run: |
@@ -528,15 +480,12 @@ jobs:
             }}-${{ steps.date.outputs.date }}
       - name: Download LLVM Toolchain
         if: ${{ steps.cache-examples.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm' && steps.cache-llvm.outputs.cache-hit != 'true' && success() }}
-        run: |
-          wget -q https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${{ env.LLVM_VERSION }}/clang+llvm-${{ env.LLVM_VERSION }}-x86_64-linux-gnu-${{ env.TC_OS }}-${{ matrix.ubuntu-version}}.tar.xz -O llvm.tar.xz
-          mkdir llvm
-          cd llvm
-          tar xf ../llvm.tar.xz
-          cd ..
-          rm llvm.tar.xz
-          ls llvm
-          echo "LLVM Cache Miss -> downloading toolchain" >> $GITHUB_STEP_SUMMARY
+        uses: ./.github/actions/setup-llvm
+        with:
+          version: ${{ env.LLVM_VERSION }}
+          os: ${{ env.TC_OS }}-${{ matrix.ubuntu-version }}
+          install-dir: llvm
+          enable-summary: true
       - name: Setup ccache
         if: ${{ steps.cache-examples.outputs.cache-hit != 'true' }}
         uses: hendrikmuhs/ccache-action@v1
@@ -628,25 +577,6 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install APT dependencies
-        timeout-minutes: 15
-        run: |
-          # The runner's Azure mirror can stream packages too slowly for the
-          # step timeout; Acquire::*::Timeout only detects idle connections.
-          # Cover both mirror+file runner images and legacy source lists.
-          for mirror_file in /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
-            if [[ -f "$mirror_file" ]]; then
-              printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | sudo tee "$mirror_file" > /dev/null
-            fi
-          done
-          shopt -s nullglob
-          for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
-            if [[ -f "$source_file" ]]; then
-              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source_file"
-            fi
-          done
-          sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
-          sudo apt-get install -y --no-install-recommends cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev jq -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -656,19 +586,14 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
+      - name: Install APT dependencies
+        timeout-minutes: 15
+        uses: ./.github/actions/install-apt
         with:
-          name: refs-patch
-      - name: Apply Refs patch
+          packages: cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev jq
+      - name: Restore submodule refs
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
+        uses: ./.github/actions/restore-refs
       - name: Download Prebuilt Examples
         uses: actions/download-artifact@v8
         with:
@@ -788,19 +713,9 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
+      - name: Restore submodule refs
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
-        with:
-          name: refs-patch
-      - name: Apply Refs patch
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
+        uses: ./.github/actions/restore-refs
       - name: Cache Examples
         if: success()
         id: cache-riscv-tests
@@ -847,26 +762,9 @@ jobs:
           os: ${{ env.TC_OS }}-${{ matrix.ubuntu-version }}
       - name: Build ETISS RISC-V Tests
         id: etiss-build-riscv-tests
-        run: |
-          set -o pipefail
-          cd riscv-tests
-          export PATH=$(pwd)/../gnu/bin/:$PATH
-          autoconf 2>&1 | tee -a etiss_riscv_tests_build_out.txt
-          ./configure 2>&1 | tee -a etiss_riscv_tests_build_out.txt
-          make RISCV_PREFIX=riscv64-unknown-elf- XLEN=${{ matrix.config.XLEN }} isa -j `nproc` 2>&1 | tee -a etiss_riscv_tests_build_out.txt
-          set +o pipefail
-      - name: Add ETISS Tests Build Summary (Failure)
-        if: ${{ steps.etiss-build-riscv-tests.outcome != 'success' }}
-        run: |
-          echo "### ETISS Build RISC-V Tests Status" >> $GITHUB_STEP_SUMMARY
-          echo "FAILING :x:" >> $GITHUB_STEP_SUMMARY
-          echo >> $GITHUB_STEP_SUMMARY
-          echo "**Output:**" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          cat etiss_riscv_tests_build_out.txt >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          # echo >> $GITHUB_STEP_SUMMARY
-          exit 1
+        uses: ./.github/actions/build-riscv-tests
+        with:
+          xlen: ${{ matrix.config.XLEN }}
       - name: Upload Prebuilt Tests
         uses: actions/upload-artifact@v7
         with:
@@ -903,25 +801,6 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install APT dependencies
-        timeout-minutes: 15
-        run: |
-          # The runner's Azure mirror can stream packages too slowly for the
-          # step timeout; Acquire::*::Timeout only detects idle connections.
-          # Cover both mirror+file runner images and legacy source lists.
-          for mirror_file in /etc/apt/apt-mirrors.txt /etc/apt/apt-mirrors-security.txt; do
-            if [[ -f "$mirror_file" ]]; then
-              printf '%s\n' 'https://archive.ubuntu.com/ubuntu' | sudo tee "$mirror_file" > /dev/null
-            fi
-          done
-          shopt -s nullglob
-          for source_file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
-            if [[ -f "$source_file" ]]; then
-              sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g; s|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' "$source_file"
-            fi
-          done
-          sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
-          sudo apt-get install -y --no-install-recommends python3-pip python3-venv cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -931,19 +810,14 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
+      - name: Install APT dependencies
+        timeout-minutes: 15
+        uses: ./.github/actions/install-apt
         with:
-          name: refs-patch
-      - name: Apply Refs patch
+          packages: python3-pip python3-venv cmake make libboost-system-dev libboost-filesystem-dev libboost-program-options-dev
+      - name: Restore submodule refs
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
+        uses: ./.github/actions/restore-refs
       - name: Download Prebuilt Tests
         uses: actions/download-artifact@v8
         with:
@@ -960,14 +834,12 @@ jobs:
           path: etiss/build/install
       - name: Run ETISS RISC-V Tests
         id: etiss-run-riscv-tests
-        run: |
-          cd etiss_riscv_tests
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
-          cd ..
-          chmod +x etiss/build/install/bin/bare_etiss_processor
-          python etiss_riscv_tests/test.py --arch ${{ matrix.config.ETISS_ARCH }} --bits ${{ matrix.config.XLEN }} --ext ${{ matrix.config.TEST_EXTS }} --virt p --timeout 20 --jit $(echo ${{ matrix.jit }} | tr '[:upper:]' '[:lower:]') --runlevel msu --keep-output both riscv-tests/isa etiss/build/install/bin/bare_etiss_processor 2>&1 | tee -a etiss_riscv_tests_run_out.txt
+        uses: ./.github/actions/run-riscv-tests
+        with:
+          arch: ${{ matrix.config.ETISS_ARCH }}
+          xlen: ${{ matrix.config.XLEN }}
+          extensions: ${{ matrix.config.TEST_EXTS }}
+          jit: ${{ matrix.jit }}
       - name: Upload Test Artifacts
         # if: success() || failure()
         uses: actions/upload-artifact@v7
@@ -1084,28 +956,19 @@ jobs:
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-      - name: Install APT dependencies
-        run: |
-          sudo apt update
-          sudo apt -qq install -y python3-pip python3-venv lcov
       - name: Clone Repo and Submodules
         uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
+      - name: Install APT dependencies
+        timeout-minutes: 15
+        uses: ./.github/actions/install-apt
         with:
-          name: refs-patch
-      - name: Apply Refs patch
+          packages: python3-pip python3-venv lcov
+      - name: Restore submodule refs
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
+        uses: ./.github/actions/restore-refs
       - name: Download Test Results
         uses: actions/download-artifact@v8
         with:
@@ -1123,12 +986,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install virtualenv
       - name: Setup M2-ISA-R
-        run: |
-          cd M2-ISA-R
-          virtualenv -p python${{ matrix.python-version }} venv
-          source venv/bin/activate
-          pip install -e .
-          echo "ETISS Patch Cache Miss -> re-gen required" >> $GITHUB_STEP_SUMMARY
+        uses: ./.github/actions/setup-m2isar
+        with:
+          python-version: ${{ matrix.python-version }}
+          summary-message: ETISS Patch Cache Miss -> re-gen required
       - name: Generate Coverage Report
         run: |
           genhtml --version
@@ -1178,10 +1039,6 @@ jobs:
         uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install APT dependencies
-        run: |
-          sudo apt update
-          sudo apt -qq install -y python3-pip python3-venv lcov
       - name: Configure Git
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -1191,19 +1048,14 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
+      - name: Install APT dependencies
+        timeout-minutes: 15
+        uses: ./.github/actions/install-apt
         with:
-          name: refs-patch
-      - name: Apply Refs patch
+          packages: python3-pip python3-venv lcov
+      - name: Restore submodule refs
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
+        uses: ./.github/actions/restore-refs
       - name: Download Coverage Artifacts
         uses: actions/download-artifact@v8
         with:
@@ -1265,19 +1117,9 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-      - name: Download Refs Artifact
+      - name: Restore submodule refs
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        uses: actions/download-artifact@v8
-        with:
-          name: refs-patch
-      - name: Apply Refs patch
-        if: ${{ needs.check.outputs.num_changed != '0' && success() }}
-        run: |
-          git am update_refs.patch
-          git submodule update --init --recursive
-          git reset --soft HEAD~1
-          git restore --staged .
-          rm update_refs.patch
+        uses: ./.github/actions/restore-refs
       - name: Check if PR Branch already exists
         if: ${{ needs.check.outputs.num_changed != '0' && success() }}
         env:

@@ -1,0 +1,65 @@
+name: run-riscv-tests
+description: Install the ETISS test runner dependencies and execute RISC-V ISA tests.
+inputs:
+  runner-dir:
+    description: etiss_riscv_tests source directory
+    default: etiss_riscv_tests
+  tests-dir:
+    description: Directory containing ISA binaries
+    default: riscv-tests/isa
+  etiss-exe:
+    description: ETISS executable path
+    default: etiss/build/install/bin/bare_etiss_processor
+  arch:
+    description: ETISS architecture name
+    required: true
+  xlen:
+    description: Target register width (32 or 64)
+    required: true
+  extensions:
+    description: ISA extensions to test
+    required: true
+  jit:
+    description: ETISS JIT (case insensitive)
+    default: TCC
+  virt:
+    description: Virtualization modes to test
+    default: p
+  runlevel:
+    description: Runlevels to test
+    default: msu
+  timeout:
+    description: Per-test timeout in seconds
+    default: '20'
+  keep-output:
+    description: 'Runner output retention: none, stdout, stderr, or both'
+    default: both
+  log-file:
+    description: Combined runner output path
+    default: etiss_riscv_tests_run_out.txt
+runs:
+  using: composite
+  steps:
+  - name: Run ISA tests
+    shell: bash
+    env:
+      RUNNER_DIR: ${{ inputs.runner-dir }}
+      TESTS_DIR: ${{ inputs.tests-dir }}
+      ETISS_EXE: ${{ inputs.etiss-exe }}
+      ETISS_ARCH: ${{ inputs.arch }}
+      XLEN: ${{ inputs.xlen }}
+      EXTENSIONS: ${{ inputs.extensions }}
+      JIT: ${{ inputs.jit }}
+      VIRT: ${{ inputs.virt }}
+      RUNLEVEL: ${{ inputs.runlevel }}
+      TEST_TIMEOUT: ${{ inputs.timeout }}
+      KEEP_OUTPUT: ${{ inputs.keep-output }}
+      LOG_FILE: ${{ inputs.log-file }}
+    run: |
+      set -e -o pipefail
+      # Run from the workspace so the runner keeps its existing results_* layout.
+      python3 -m venv "$RUNNER_DIR/venv"
+      source "$RUNNER_DIR/venv/bin/activate"
+      pip install -r "$RUNNER_DIR/requirements.txt"
+      chmod +x "$ETISS_EXE"
+      python "$RUNNER_DIR/test.py" --arch "$ETISS_ARCH" --bits "$XLEN" --ext "$EXTENSIONS" --virt "$VIRT" --timeout "$TEST_TIMEOUT" --jit "${JIT,,}" --runlevel "$RUNLEVEL" --keep-output "$KEEP_OUTPUT" "$TESTS_DIR" "$ETISS_EXE" 2>&1 | tee -a "$LOG_FILE"

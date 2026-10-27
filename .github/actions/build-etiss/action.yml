@@ -1,0 +1,80 @@
+name: Build ETISS
+description: Configure, build, and install a checked-out ETISS source tree.
+inputs:
+  source-dir:
+    description: ETISS source directory, relative to the workspace or absolute
+    default: etiss
+  build-dir:
+    description: CMake build directory, relative to the workspace or absolute
+    default: etiss/build
+  install-dir:
+    description: Install directory, relative to the workspace or absolute
+    default: etiss/build/install
+  build-type:
+    description: CMake build type
+    default: Release
+  jobs:
+    description: Parallel build jobs (empty uses nproc)
+    default: ''
+  compiler-launcher:
+    description: Optional C and C++ compiler launcher, such as sccache
+    default: ''
+  coredsl-coverage:
+    description: Optional ETISS_USE_COREDSL_COVERAGE value (empty keeps the CMake default)
+    default: ''
+  filelogger-plugin-dir:
+    description: Optional FileLoggerPlugin source directory to link into PluginImpl
+    default: ''
+  log-file:
+    description: Optional file to append combined configure, build, and install output
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Configure, build, and install ETISS
+      shell: bash
+      env:
+        SOURCE_DIR: ${{ inputs.source-dir }}
+        BUILD_DIR: ${{ inputs.build-dir }}
+        INSTALL_DIR: ${{ inputs.install-dir }}
+        BUILD_TYPE: ${{ inputs.build-type }}
+        BUILD_JOBS: ${{ inputs.jobs }}
+        COMPILER_LAUNCHER: ${{ inputs.compiler-launcher }}
+        COREDSL_COVERAGE: ${{ inputs.coredsl-coverage }}
+        FILELOGGER_PLUGIN_DIR: ${{ inputs.filelogger-plugin-dir }}
+        LOG_FILE: ${{ inputs.log-file }}
+      run: |
+        set -e -o pipefail
+        # CMake interprets a relative install prefix against the build directory.
+        # Resolve it against the workspace, as in the original workflow commands.
+        INSTALL_DIR=$(realpath -m "$INSTALL_DIR")
+        if [[ -n "$LOG_FILE" ]]; then
+          touch "$LOG_FILE"
+        fi
+        if [[ -n "$FILELOGGER_PLUGIN_DIR" ]]; then
+          ln -s "$(realpath "$FILELOGGER_PLUGIN_DIR")" "$SOURCE_DIR/PluginImpl/FileLoggerPlugin"
+        fi
+        configure_args=(
+          -S "$SOURCE_DIR" -B "$BUILD_DIR"
+          "-DCMAKE_INSTALL_PREFIX=$INSTALL_DIR"
+          "-DCMAKE_BUILD_TYPE=$BUILD_TYPE"
+        )
+        if [[ -n "$COMPILER_LAUNCHER" ]]; then
+          configure_args+=(
+            "-DCMAKE_C_COMPILER_LAUNCHER=$COMPILER_LAUNCHER"
+            "-DCMAKE_CXX_COMPILER_LAUNCHER=$COMPILER_LAUNCHER"
+          )
+        fi
+        if [[ -n "$COREDSL_COVERAGE" ]]; then
+          configure_args+=("-DETISS_USE_COREDSL_COVERAGE=$COREDSL_COVERAGE")
+        fi
+        run_cmake() {
+          if [[ -n "$LOG_FILE" ]]; then
+            cmake "$@" 2>&1 | tee -a "$LOG_FILE"
+          else
+            cmake "$@"
+          fi
+        }
+        run_cmake "${configure_args[@]}"
+        run_cmake --build "$BUILD_DIR" "-j${BUILD_JOBS:-$(nproc)}"
+        run_cmake --install "$BUILD_DIR"

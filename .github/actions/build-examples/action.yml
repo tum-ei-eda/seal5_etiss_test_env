@@ -2,6 +2,9 @@
 name: 'Build SW Examples'
 description: 'Compile Example Target SW'
 inputs:
+  toolchain-file:
+    description: Optional CMake toolchain file instead of a preset
+    default: ''
   examples-dir:
     description: 'Examples SW directory'
     required: true
@@ -63,16 +66,22 @@ runs:
       id: build-examples
       shell: bash
       run: |
-        # export PATH=${{ inputs.llvm-dir }}/bin/:$PATH
+        if [[ -n "${{ inputs.llvm-dir }}" ]]; then
+          export PATH="${{ inputs.llvm-dir }}/bin:$PATH"
+        fi
+        configure_mode=(--preset "${{ steps.cmake_preset.outputs.name }}")
+        if [[ -n "${{ inputs.toolchain-file }}" ]]; then
+          configure_mode=("-DCMAKE_TOOLCHAIN_FILE=${{ inputs.toolchain-file }}" "-DCMAKE_BUILD_TYPE=${{ inputs.build-type }}")
+        fi
         set -o pipefail
         cd ${{ inputs.examples-dir }}
         if [[ "${{ inputs.toolchain }}" == "llvm" ]]
         then
-            cmake -S . -B build --preset ${{ steps.cmake_preset.outputs.name }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} -DLLVM_DIR=${{ inputs.llvm-dir }} 2>&1 | tee -a etiss_sw_build_out.txt
+            cmake -S . -B build "${configure_mode[@]}" -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} -DLLVM_DIR=${{ inputs.llvm-dir }} 2>&1 | tee -a etiss_sw_build_out.txt
         else
-            cmake -S . -B build --preset ${{ steps.cmake_preset.outputs.name }} -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} 2>&1 | tee -a etiss_sw_build_out.txt
+            cmake -S . -B build "${configure_mode[@]}" -DCMAKE_INSTALL_PREFIX=$(pwd)/build/install -DRISCV_ARCH=${{ inputs.arch }} -DRISCV_ABI=${{ inputs.abi }} -DRISCV_TOOLCHAIN_PREFIX=${{ inputs.gnu-dir }} -DRISCV_TOOLCHAIN_BASENAME=${{ inputs.gnu-name }} 2>&1 | tee -a etiss_sw_build_out.txt
         fi
-        for prog in $(echo ${{ inputs.PROGS }} | sed 's/,/ /g'); do
+        for prog in $(echo ${{ inputs.progs }} | sed 's/,/ /g'); do
             echo "prog=$prog" 2>&1 | tee -a etiss_sw_build_out.txt
             cmake --build build -j$(nproc) -t $prog 2>&1 | tee -a etiss_sw_build_out.txt
         done
@@ -87,7 +96,7 @@ runs:
         echo >> $GITHUB_STEP_SUMMARY
         echo "**ETISS SW Build Outputs:**" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        cat etiss_riscv_examples/etiss_sw_build_out.txt >> $GITHUB_STEP_SUMMARY
+        cat "${{ inputs.examples-dir }}/etiss_sw_build_out.txt" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         # echo >> $GITHUB_STEP_SUMMARY

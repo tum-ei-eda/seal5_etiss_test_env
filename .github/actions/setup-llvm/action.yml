@@ -1,0 +1,41 @@
+name: setup-llvm
+description: Download and unpack the prebuilt RISC-V LLVM toolchain.
+inputs:
+  version:
+    description: LLVM release version
+    required: true
+  platform:
+    description: Host architecture and ABI component of the release archive
+    default: x86_64-linux-gnu
+  os:
+    description: Operating system component of the release archive
+    default: ubuntu-22.04
+  install-dir:
+    description: Destination directory, relative to the workspace or absolute
+    default: llvm
+  enable-summary:
+    description: Write the download message to the job summary
+    default: 'true'
+runs:
+  using: composite
+  steps:
+  - name: Download LLVM toolchain
+    shell: bash
+    env:
+      LLVM_VERSION: ${{ inputs.version }}
+      LLVM_PLATFORM: ${{ inputs.platform }}
+      LLVM_OS: ${{ inputs.os }}
+      INSTALL_DIR: ${{ inputs.install-dir }}
+      ENABLE_SUMMARY: ${{ inputs.enable-summary }}
+    run: |
+      set -e -o pipefail
+      INSTALL_DIR=$(realpath -m "$INSTALL_DIR")
+      archive="$INSTALL_DIR.tar.xz"
+      wget -q "https://github.com/PhilippvK/riscv-tools/releases/download/llvm_${LLVM_VERSION}/clang+llvm-${LLVM_VERSION}-${LLVM_PLATFORM}-${LLVM_OS}.tar.xz" -O "$archive"
+      mkdir "$INSTALL_DIR"
+      tar xf "$archive" -C "$INSTALL_DIR"
+      rm "$archive"
+      ls "$INSTALL_DIR"
+      if [[ "$ENABLE_SUMMARY" == 'true' ]]; then
+        echo "LLVM Cache Miss -> downloading toolchain" >> "$GITHUB_STEP_SUMMARY"
+      fi

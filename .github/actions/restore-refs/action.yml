@@ -1,0 +1,22 @@
+name: restore-refs
+description: Download and apply a refs patch, update submodules, and leave refs unstaged.
+inputs:
+  artifact-name:
+    description: Refs patch artifact name
+    required: false
+    default: refs-patch
+runs:
+  using: composite
+  steps:
+  - name: Download refs patch
+    uses: actions/download-artifact@v8
+    with:
+      name: ${{ inputs.artifact-name }}
+  - name: Apply refs patch
+    shell: bash
+    run: |
+      git am update_refs.patch
+      git submodule update --init --recursive
+      git reset --soft HEAD~1
+      git restore --staged .
+      rm update_refs.patch

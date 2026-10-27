@@ -1,0 +1,55 @@
+name: generate-seal5
+description: Generate, build and test LLVM using a Seal5 demo; export a patch and cache archive.
+inputs:
+  source-dir:
+    description: Seal5 source directory
+    default: seal5
+  demo-script:
+    description: Demo script relative to Seal5 source
+    default: examples/s4e_demo.py
+  cdsl-dir:
+    description: CoreDSL input directory
+    default: riscv-coredsl-extensions
+  llvm-dir:
+    description: Generated LLVM source and build directory
+    default: seal5_llvm
+  out-dir:
+    description: Seal5 output directory
+    default: seal5_out
+  build-config:
+    description: Seal5 build configuration
+    default: release
+  llvm-ref:
+    description: Base LLVM revision
+    default: llvmorg-19.1.7
+  patch-file:
+    description: Generated LLVM patch
+    default: llvm.patch
+runs:
+  using: composite
+  steps:
+  - name: Generate LLVM
+    shell: bash
+    env:
+      SOURCE_DIR: ${{ inputs.source-dir }}
+      DEMO_SCRIPT: ${{ inputs.demo-script }}
+      DEMO_CDSL_DIR: ${{ inputs.cdsl-dir }}
+      DEST: ${{ inputs.llvm-dir }}
+      OUT_DIR: ${{ inputs.out-dir }}
+      BUILD_CONFIG: ${{ inputs.build-config }}
+      LLVM_REF: ${{ inputs.llvm-ref }}
+      PATCH_FILE: ${{ inputs.patch-file }}
+    run: |
+      set -e -o pipefail
+      SOURCE_DIR=$(realpath "$SOURCE_DIR")
+      export DEMO_CDSL_DIR=$(realpath "$DEMO_CDSL_DIR")
+      export DEST=$(realpath -m "$DEST")
+      export OUT_DIR=$(realpath -m "$OUT_DIR")
+      PATCH_FILE=$(realpath -m "$PATCH_FILE")
+      cd "$SOURCE_DIR"
+      source venv/bin/activate
+      export PYTHONPATH="$SOURCE_DIR${PYTHONPATH:+:$PYTHONPATH}"
+      mkdir -p "$OUT_DIR"
+      CCACHE=1 VERBOSE=0 PROGRESS=1 CLONE_DEPTH=1 IGNORE_ERROR=0 TEST=1 INSTALL=1 EXPORT=1 python "$DEMO_SCRIPT"
+      git -C "$DEST" diff "$LLVM_REF" > "$PATCH_FILE"
+      XZ_OPT='-T0 -6' tar -cJf "$DEST.tar.xz" -C "$DEST" .

@@ -50,19 +50,19 @@ outputs: {}
 runs:
   using: "composite"
   steps:
-    - name: Run S4E Examples on ${{ inputs.etiss_arch }}
+    - name: Run S4E Examples on ${{ inputs.etiss-arch }}
       id: run-examples
       shell: bash
       run: |
         set -o pipefail
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-        chmod +x etiss/build/install/bin/bare_etiss_processor
+        chmod +x "${{ inputs.etiss-install-dir }}/bin/bare_etiss_processor"
         for prog in $(echo ${{ inputs.progs }} | sed 's/,/ /g'); do
             echo "--- Program: $prog ---" | tee -a etiss_sw_run_out.txt
             timeout 5m ${{ inputs.etiss-install-dir }}/bin/bare_etiss_processor -i${{ inputs.examples-dir}}/build/install/ini/$prog.ini --arch.cpu=${{ inputs.etiss-arch }} --jit.type=${{ inputs.jit }}JIT --vp.stats_file_path=stats.json 2>&1 | tee -a etiss_sw_run_out.txt
             if [[ -f stats.json ]]
             then
-                jq -s "[.[] + {prog: \"$prog\", toolchain: \"${{ matrix.toolchain }}\", jit: \"${{ inputs.jit}}\", etiss_arch: \"${{ inputs.etiss-arch }}\", arch: \"${{ inputs.arch }}\", abi: \"${{ inputs.abi }}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ inputs.env_ref }}\", etiss_sha: \"${{ inputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
+                jq -s "[.[] + {prog: \"$prog\", toolchain: \"${{ inputs.toolchain }}\", jit: \"${{ inputs.jit}}\", etiss_arch: \"${{ inputs.etiss-arch }}\", arch: \"${{ inputs.arch }}\", abi: \"${{ inputs.abi }}\", timestamp: \"$TIMESTAMP\", env_sha: \"${{ inputs.env_ref }}\", etiss_sha: \"${{ inputs.etiss_ref }}\"}]" stats.json > stats_$prog.json
                 rm stats.json
             fi
         done
@@ -88,7 +88,7 @@ runs:
         echo >> $GITHUB_STEP_SUMMARY
         echo "ETISS Sim Outputs:" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        cat out.txt >> $GITHUB_STEP_SUMMARY
+        cat etiss_sw_run_out.txt >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         echo >> $GITHUB_STEP_SUMMARY
         echo "- - -" >> $GITHUB_STEP_SUMMARY

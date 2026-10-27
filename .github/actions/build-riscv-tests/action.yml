@@ -1,0 +1,63 @@
+name: build-riscv-tests
+description: Build the ISA binaries from a checked-out riscv-tests source tree.
+inputs:
+  source-dir:
+    description: riscv-tests source directory
+    default: riscv-tests
+  gnu-dir:
+    description: GNU toolchain directory
+    default: gnu
+  riscv-prefix:
+    description: Compiler executable prefix
+    default: riscv64-unknown-elf-
+  xlen:
+    description: Target register width (32 or 64)
+    required: true
+  jobs:
+    description: Parallel make jobs (empty uses nproc)
+    default: ''
+  log-file:
+    description: Build log path relative to the workspace or absolute
+    default: riscv-tests/etiss_riscv_tests_build_out.txt
+  enable-summary:
+    description: Write build output to the job summary on failure
+    default: 'true'
+runs:
+  using: composite
+  steps:
+  - name: Build ISA binaries
+    id: build
+    shell: bash
+    env:
+      SOURCE_DIR: ${{ inputs.source-dir }}
+      GNU_DIR: ${{ inputs.gnu-dir }}
+      RISCV_PREFIX: ${{ inputs.riscv-prefix }}
+      XLEN: ${{ inputs.xlen }}
+      BUILD_JOBS: ${{ inputs.jobs }}
+      LOG_FILE: ${{ inputs.log-file }}
+    run: |
+      set -e -o pipefail
+      GNU_DIR=$(realpath "$GNU_DIR")
+      LOG_FILE=$(realpath -m "$LOG_FILE")
+      cd "$SOURCE_DIR"
+      export PATH="$GNU_DIR/bin:$PATH"
+      autoconf 2>&1 | tee -a "$LOG_FILE"
+      ./configure 2>&1 | tee -a "$LOG_FILE"
+      make "RISCV_PREFIX=$RISCV_PREFIX" "XLEN=$XLEN" isa -j "${BUILD_JOBS:-$(nproc)}" 2>&1 | tee -a "$LOG_FILE"
+  - name: Summarize build failure
+    if: ${{ failure() && steps.build.outcome == 'failure' && inputs.enable-summary == 'true' }}
+    shell: bash
+    env:
+      LOG_FILE: ${{ inputs.log-file }}
+    run: |
+      {
+        echo '### ETISS Build RISC-V Tests Status'
+        echo 'FAILING :x:'
+        echo
+        echo '**Output:**'
+        echo '```'
+        if [[ -f "$LOG_FILE" ]]; then
+          cat "$LOG_FILE"
+        fi
+        echo '```'
+      } >> "$GITHUB_STEP_SUMMARY"
