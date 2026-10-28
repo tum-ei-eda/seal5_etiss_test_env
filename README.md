@@ -19,8 +19,18 @@ does not use. Imports use filenames directly; the generator passes
 are needed.
 Only models and generated output go into the scratch directory.
 
-CI compiles the generated plugin with this repository's ETISS revision and
-uploads `xcorev-etiss`. All sources are pinned by this repository.
+CI builds and installs ETISS with the generated plugin, then uses the shared
+`build-examples` and `run-examples` actions to compile and execute
+`hello_world`, `dhry`, and `example_cpp` with GCC JIT. The prebuilt Core-V GCC
+20240530 archive is the Ubuntu 22.04 download used by `xvalid-corev-exp/dl`.
+Examples use `RISCV_ARCH=rv32im_zicsr_zifencei_xcvmem_xcvmac_xcvalu_xcvbi_xcvbitmanip`
+and `RISCV_ABI=ilp32`. Hardware loops are excluded, matching the CoreDSL aggregate.
+`setup-gnu` downloads the toolchain and `build-etiss` builds the simulator;
+neither LLVM nor a RISC-V toolchain is built from source.
+
+Only after examples pass does CI upload `xcorev-etiss` and propose updates.
+Example build/run logs and metrics are retained in `xcorev-examples`, including
+on failures. All sources are pinned by this repository.
 `generation.json` records the input revisions; generated timestamps are
 normalized to avoid changes on otherwise identical runs.
 
@@ -31,8 +41,8 @@ Without it, CI still generates, builds, and uploads the plugin. The workflow
 updates only `RV32IMACFDXCoreV`, and does not automatically merge the PR or
 advance this repository's plugin submodule pointer.
 
-The workflow accepts `xcorev-cdsl-event`, `m2isar-event`, and
-`etiss-event`, using the existing dispatch payload convention: `from`,
+The workflow accepts `xcorev-cdsl-event`, `m2isar-event`, `etiss-event`, and
+`examples-event`, using the existing dispatch payload convention: `from`,
 `ref` (full commit SHA), `triggered_run_id`, and optional `is_pr: "true"`.
 It checks out the dispatched revision before generation. Successful upstream
 push dispatches also propose the validated submodule revision here, on
@@ -44,7 +54,7 @@ The sender, top and support files, import fixes, and `rv_base` submodule pin
 must be committed and merged in that upstream repository, and this repo must
 pin the resulting revision.
 Configure its `SEAL5_ACCESS_TOKEN` with access to dispatch events to this repo.
-The existing M2-ISA-R and ETISS senders already use the event
+The existing M2-ISA-R, ETISS, and examples senders already use the event
 types accepted above. This repo's token also needs contents and pull-request
 write permissions here for source-reference PRs.
 
@@ -59,4 +69,5 @@ python scripts/prepare_etiss_arch.py /tmp/xcorev-work/output/RV32IMACFDXCoreV --
 ```
 
 Use a new `--work` directory on each run. Generation uses M2-ISA-R directly;
-no Seal5, LLVM, or RISC-V GCC build or download is needed.
+no Seal5, LLVM, or RISC-V GCC build or download is needed for generation alone.
+The CI example checks additionally download the prebuilt Core-V GCC toolchain.

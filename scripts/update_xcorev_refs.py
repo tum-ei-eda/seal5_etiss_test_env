@@ -11,6 +11,7 @@ SOURCES = {
     "xcorev-cdsl": "CoreV_ISA_CoreDSL",
     "m2isar": "M2-ISA-R",
     "etiss": "etiss",
+    "examples": "etiss_riscv_examples",
 }
 
 

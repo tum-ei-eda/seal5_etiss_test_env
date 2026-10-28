@@ -3,11 +3,16 @@ name: Generate Core-V ETISS plugin
 on:
   workflow_dispatch:
   repository_dispatch:
-    types: [xcorev-cdsl-event, m2isar-event, etiss-event]
+    types: [xcorev-cdsl-event, m2isar-event, etiss-event, examples-event]
   push:
     branches: [main]
     paths:
       - .github/workflows/xcorev.yml
+      - .github/actions/build-etiss/**
+      - .github/actions/setup-gnu/**
+      - .github/actions/build-examples/**
+      - .github/actions/run-examples/**
+      - scripts/json_metrics2markdown.sh
       - scripts/generate_xcorev.py
       - scripts/prepare_etiss_arch.py
       - scripts/update_xcorev_refs.py
@@ -16,9 +21,15 @@ on:
       - M2-ISA-R
       - etiss
       - etiss-arch-plugins
+      - etiss_riscv_examples
   pull_request:
     paths:
       - .github/workflows/xcorev.yml
+      - .github/actions/build-etiss/**
+      - .github/actions/setup-gnu/**
+      - .github/actions/build-examples/**
+      - .github/actions/run-examples/**
+      - scripts/json_metrics2markdown.sh
       - scripts/generate_xcorev.py
       - scripts/prepare_etiss_arch.py
       - scripts/update_xcorev_refs.py
@@ -27,9 +38,17 @@ on:
       - M2-ISA-R
       - etiss
       - etiss-arch-plugins
+      - etiss_riscv_examples
 
 permissions:
   contents: read
+
+env:
+  RISCV_ARCH: rv32im_zicsr_zifencei_xcvmem_xcvmac_xcvalu_xcvbi_xcvbitmanip
+  RISCV_ABI: ilp32
+  ETISS_ARCH: RV32IMACFDXCoreV
+  PROGS: hello_world,dhry,example_cpp
+  COREV_GCC_URL: https://buildbot.embecosm.com/job/corev-gcc-ubuntu2204/47/artifact/corev-openhw-gcc-ubuntu2204-20240530.tar.gz
 
 concurrency:
   group: xcorev-${{ github.ref }}-${{ github.event_name }}-${{ github.event.client_payload.from }}-${{ github.event.client_payload.ref }}
@@ -38,11 +57,11 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - name: Initialize generation and simulator sources
-        run: git submodule update --init --recursive M2-ISA-R etiss CoreV_ISA_CoreDSL
+        run: git submodule update --init --recursive M2-ISA-R etiss CoreV_ISA_CoreDSL etiss_riscv_examples
       - uses: actions/setup-python@v7
         with:
           python-version: '3.10'
@@ -53,17 +72,80 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev clang-format-14
+          sudo apt-get install -y cmake ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev clang-format-14 jq
           python -m pip install -e ./M2-ISA-R
       - name: Generate Core-V plugin
         run: |
           python scripts/generate_xcorev.py --work "$RUNNER_TEMP/xcorev"
           python scripts/prepare_etiss_arch.py "$RUNNER_TEMP/xcorev/output/RV32IMACFDXCoreV" --formatter clang-format-14
-      - name: Build generated plugin with ETISS
+      - name: Include generated plugin in ETISS
         run: |
           ln -s "$RUNNER_TEMP/xcorev/output/RV32IMACFDXCoreV" etiss/PluginImpl/RV32IMACFDXCoreV
-          cmake -S etiss -B "$RUNNER_TEMP/etiss-build" -DCMAKE_BUILD_TYPE=Release -DENABLE_JIT_LLVM=OFF -DENABLE_JIT_TCC=OFF
-          cmake --build "$RUNNER_TEMP/etiss-build" --target RV32IMACFDXCoreV -j2
+      - name: Build and install ETISS with the generated plugin
+        uses: ./.github/actions/build-etiss
+        with:
+          build-dir: ${{ runner.temp }}/etiss-build
+          install-dir: ${{ runner.temp }}/etiss-install
+          build-type: Release
+          jobs: '2'
+          llvm-jit: 'OFF'
+          tcc-jit: 'OFF'
+      - name: Cache prebuilt Core-V GCC
+        id: gcc
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/corev-gcc
+          key: corev-gcc-ubuntu2204-20240530-v1
+      - name: Download prebuilt Core-V GCC
+        if: steps.gcc.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-gnu
+        with:
+          install-dir: ${{ runner.temp }}/corev-gcc
+          archive-url: ${{ env.COREV_GCC_URL }}
+          strip-components: '1'
+          name: riscv32-corev-elf
+          enable-summary: 'true'
+      - name: Build Core-V examples
+        uses: ./.github/actions/build-examples
+        with:
+          examples-dir: etiss_riscv_examples
+          toolchain-file: cmake/riscv-gcc-toolchain.cmake
+          gnu-dir: ${{ runner.temp }}/corev-gcc
+          gnu-name: riscv32-corev-elf
+          toolchain: gcc
+          build-type: Release
+          xlen: '32'
+          arch: ${{ env.RISCV_ARCH }}
+          abi: ${{ env.RISCV_ABI }}
+          progs: ${{ env.PROGS }}
+          enable-summary: 'true'
+      - name: Record ETISS revision
+        id: etiss
+        run: echo "ref=$(git -C etiss rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Run Core-V examples
+        uses: ./.github/actions/run-examples
+        with:
+          examples-dir: etiss_riscv_examples
+          etiss-install-dir: ${{ runner.temp }}/etiss-install
+          progs: ${{ env.PROGS }}
+          etiss-arch: ${{ env.ETISS_ARCH }}
+          env_ref: ${{ github.sha }}
+          etiss_ref: ${{ steps.etiss.outputs.ref }}
+          arch: ${{ env.RISCV_ARCH }}
+          abi: ${{ env.RISCV_ABI }}
+          jit: GCC
+          toolchain: gcc
+          enable-summary: 'true'
+      - name: Upload example logs and metrics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: xcorev-examples
+          path: |
+            etiss_riscv_examples/etiss_sw_build_out.txt
+            etiss_sw_run_out.txt
+            combined_stats.json
+            combined_stats.md
       - uses: actions/upload-artifact@v7
         with:
           name: xcorev-etiss
@@ -88,11 +170,12 @@ jobs:
           branch: pr_update_xcorev_${{ steps.refs.outputs.source }}
           commit-message: Update Core-V flow source revision
           title: Update Core-V flow source (${{ steps.refs.outputs.source }})
-          body: Validated by Core-V ETISS generation and plugin compilation.
+          body: Validated by Core-V ETISS generation, compilation, and example execution.
           add-paths: |
             CoreV_ISA_CoreDSL
             M2-ISA-R
             etiss
+            etiss_riscv_examples
 
   update:
     needs: generate
@@ -135,5 +218,5 @@ jobs:
           title: Regenerate official Core-V ETISS plugin
           body: |
             Regenerate RV32IMACFDXCoreV from the pinned official Core-V descriptions, without XMNN instructions.
-            Source revisions are recorded in generation.json. The generated plugin was compiled with ETISS before publication.
+            Source revisions are recorded in generation.json. The generated plugin was compiled with ETISS and used to run the Core-V examples before publication.
           add-paths: RV32IMACFDXCoreV

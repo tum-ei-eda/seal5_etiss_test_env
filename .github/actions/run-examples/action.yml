@@ -50,7 +50,7 @@ outputs: {}
 runs:
   using: "composite"
   steps:
-    - name: Run S4E Examples on ${{ inputs.etiss-arch }}
+    - name: Run Examples on ${{ inputs.etiss-arch }}
       id: run-examples
       shell: bash
       run: |

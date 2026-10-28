@@ -2,6 +2,12 @@
 name: 'Setup GNU Toolchain'
 description: 'Download RISC-V GNU Toolchain'
 inputs:
+  archive-url:
+    description: Optional prebuilt toolchain archive URL instead of the riscv-tools release URL
+    default: ''
+  strip-components:
+    description: Leading archive path components to strip when extracting
+    default: '0'
   install-dir:
     description: 'Install directory'
     required: true
@@ -38,10 +44,16 @@ runs:
 
     - name: Download RISCV-GNU-Toolchain
       shell: bash
+      env:
+        ARCHIVE_URL: ${{ inputs.archive-url }}
+        STRIP_COMPONENTS: ${{ inputs.strip-components }}
       run: |
         mkdir ${{ inputs.install-dir }}
-        wget https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ inputs.version }}/${{ inputs.name }}-${{ inputs.os }}-${{ inputs.variant }}.tar.xz -O ${{ inputs.install-dir }}.tar.xz
+        if [[ -z "$ARCHIVE_URL" ]]; then
+          ARCHIVE_URL="https://github.com/PhilippvK/riscv-tools/releases/download/gnu_${{ inputs.version }}/${{ inputs.name }}-${{ inputs.os }}-${{ inputs.variant }}.tar.xz"
+        fi
+        wget "$ARCHIVE_URL" -O ${{ inputs.install-dir }}.tar.xz
         cd ${{ inputs.install-dir }}
-        tar xvf ${{ inputs.install-dir }}.tar.xz
+        tar xf ${{ inputs.install-dir }}.tar.xz --strip-components="$STRIP_COMPONENTS"
         cd ..
         rm ${{ inputs.install-dir }}.tar.xz

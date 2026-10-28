@@ -1,6 +1,12 @@
 name: Build ETISS
 description: Configure, build, and install a checked-out ETISS source tree.
 inputs:
+  llvm-jit:
+    description: Optional ENABLE_JIT_LLVM value (empty keeps the CMake default)
+    default: ''
+  tcc-jit:
+    description: Optional ENABLE_JIT_TCC value (empty keeps the CMake default)
+    default: ''
   source-dir:
     description: ETISS source directory, relative to the workspace or absolute
     default: etiss
@@ -41,6 +47,8 @@ runs:
         BUILD_JOBS: ${{ inputs.jobs }}
         COMPILER_LAUNCHER: ${{ inputs.compiler-launcher }}
         COREDSL_COVERAGE: ${{ inputs.coredsl-coverage }}
+        LLVM_JIT: ${{ inputs.llvm-jit }}
+        TCC_JIT: ${{ inputs.tcc-jit }}
         FILELOGGER_PLUGIN_DIR: ${{ inputs.filelogger-plugin-dir }}
         LOG_FILE: ${{ inputs.log-file }}
       run: |
@@ -67,6 +75,12 @@ runs:
         fi
         if [[ -n "$COREDSL_COVERAGE" ]]; then
           configure_args+=("-DETISS_USE_COREDSL_COVERAGE=$COREDSL_COVERAGE")
+        fi
+        if [[ -n "$LLVM_JIT" ]]; then
+          configure_args+=("-DENABLE_JIT_LLVM=$LLVM_JIT")
+        fi
+        if [[ -n "$TCC_JIT" ]]; then
+          configure_args+=("-DENABLE_JIT_TCC=$TCC_JIT")
         fi
         run_cmake() {
           if [[ -n "$LOG_FILE" ]]; then
