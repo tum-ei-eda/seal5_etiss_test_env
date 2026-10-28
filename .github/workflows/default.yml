@@ -834,6 +834,8 @@ jobs:
           path: etiss/build/install
       - name: Run ETISS RISC-V Tests
         id: etiss-run-riscv-tests
+        # The runner returns its failure count; the summary below filters known failures.
+        continue-on-error: true
         uses: ./.github/actions/run-riscv-tests
         with:
           arch: ${{ matrix.config.ETISS_ARCH }}
