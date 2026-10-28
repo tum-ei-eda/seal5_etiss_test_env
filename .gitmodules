@@ -28,3 +28,6 @@
 [submodule "etiss-arch-plugins"]
 	path = etiss-arch-plugins
 	url = git@github.com:tum-ei-eda/etiss-arch-plugins.git
+[submodule "CoreV_ISA_CoreDSL"]
+	path = CoreV_ISA_CoreDSL
+	url = https://github.com/tum-ei-eda/CoreV_ISA_CoreDSL.git

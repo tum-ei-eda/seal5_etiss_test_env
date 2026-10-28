@@ -1,0 +1,139 @@
+name: Generate Core-V ETISS plugin
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [xcorev-cdsl-event, m2isar-event, etiss-event]
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/xcorev.yml
+      - scripts/generate_xcorev.py
+      - scripts/prepare_etiss_arch.py
+      - scripts/update_xcorev_refs.py
+      - .gitmodules
+      - CoreV_ISA_CoreDSL
+      - M2-ISA-R
+      - etiss
+      - etiss-arch-plugins
+  pull_request:
+    paths:
+      - .github/workflows/xcorev.yml
+      - scripts/generate_xcorev.py
+      - scripts/prepare_etiss_arch.py
+      - scripts/update_xcorev_refs.py
+      - .gitmodules
+      - CoreV_ISA_CoreDSL
+      - M2-ISA-R
+      - etiss
+      - etiss-arch-plugins
+
+permissions:
+  contents: read
+
+concurrency:
+  group: xcorev-${{ github.ref }}-${{ github.event_name }}-${{ github.event.client_payload.from }}-${{ github.event.client_payload.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Initialize generation and simulator sources
+        run: git submodule update --init --recursive M2-ISA-R etiss CoreV_ISA_CoreDSL
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+      - name: Apply upstream source revision
+        if: github.event_name == 'repository_dispatch'
+        id: refs
+        run: python scripts/update_xcorev_refs.py
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev clang-format-14
+          python -m pip install -e ./M2-ISA-R
+      - name: Generate Core-V plugin
+        run: |
+          python scripts/generate_xcorev.py --work "$RUNNER_TEMP/xcorev"
+          python scripts/prepare_etiss_arch.py "$RUNNER_TEMP/xcorev/output/RV32IMACFDXCoreV" --formatter clang-format-14
+      - name: Build generated plugin with ETISS
+        run: |
+          ln -s "$RUNNER_TEMP/xcorev/output/RV32IMACFDXCoreV" etiss/PluginImpl/RV32IMACFDXCoreV
+          cmake -S etiss -B "$RUNNER_TEMP/etiss-build" -DCMAKE_BUILD_TYPE=Release -DENABLE_JIT_LLVM=OFF -DENABLE_JIT_TCC=OFF
+          cmake --build "$RUNNER_TEMP/etiss-build" --target RV32IMACFDXCoreV -j2
+      - uses: actions/upload-artifact@v7
+        with:
+          name: xcorev-etiss
+          path: ${{ runner.temp }}/xcorev/output/
+          if-no-files-found: error
+      - name: Check source-update credentials
+        id: credentials
+        if: github.event_name == 'repository_dispatch' && github.event.client_payload.is_pr != 'true' && github.event.client_payload.is_pr != true
+        env:
+          TOKEN: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+        run: |
+          if [[ -n "$TOKEN" ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Set SEAL5_ACCESS_TOKEN to enable source-reference update PRs.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Propose validated source revision
+        if: steps.credentials.outputs.available == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          branch: pr_update_xcorev_${{ steps.refs.outputs.source }}
+          commit-message: Update Core-V flow source revision
+          title: Update Core-V flow source (${{ steps.refs.outputs.source }})
+          body: Validated by Core-V ETISS generation and plugin compilation.
+          add-paths: |
+            CoreV_ISA_CoreDSL
+            M2-ISA-R
+            etiss
+
+  update:
+    needs: generate
+    if: github.event_name != 'pull_request' && github.event.client_payload.is_pr != 'true' && github.event.client_payload.is_pr != true
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check publication credentials
+        id: credentials
+        env:
+          TOKEN: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+        run: |
+          if [[ -n "$TOKEN" ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Plugin artifact is available. Set SEAL5_ACCESS_TOKEN with contents and pull-request write access to tum-ei-eda/etiss-arch-plugins to enable update PRs.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.credentials.outputs.available == 'true'
+        with:
+          repository: tum-ei-eda/etiss-arch-plugins
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          path: plugins
+      - uses: actions/download-artifact@v8
+        if: steps.credentials.outputs.available == 'true'
+        with:
+          name: xcorev-etiss
+          path: generated
+      - name: Update generated files
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          mkdir -p plugins/RV32IMACFDXCoreV
+          rsync -a --delete generated/RV32IMACFDXCoreV/ plugins/RV32IMACFDXCoreV/
+      - uses: peter-evans/create-pull-request@v6
+        if: steps.credentials.outputs.available == 'true'
+        with:
+          path: plugins
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          branch: auto-update-xcorev
+          commit-message: Regenerate official Core-V ETISS plugin
+          title: Regenerate official Core-V ETISS plugin
+          body: |
+            Regenerate RV32IMACFDXCoreV from the pinned official Core-V descriptions, without XMNN instructions.
+            Source revisions are recorded in generation.json. The generated plugin was compiled with ETISS before publication.
+          add-paths: RV32IMACFDXCoreV
