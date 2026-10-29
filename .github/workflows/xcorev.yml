@@ -60,6 +60,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Initialize generation and simulator sources
         run: git submodule update --init --recursive M2-ISA-R etiss CoreV_ISA_CoreDSL etiss_riscv_examples
       - uses: actions/setup-python@v7
@@ -197,6 +199,7 @@ jobs:
         with:
           repository: tum-ei-eda/etiss-arch-plugins
           token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          persist-credentials: false
           path: plugins
       - uses: actions/download-artifact@v8
         if: steps.credentials.outputs.available == 'true'
