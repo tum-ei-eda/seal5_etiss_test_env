@@ -10,6 +10,7 @@ on:
       - .github/workflows/default.yml
       - .github/actions
       - scripts/prepare_etiss_arch.py
+      - scripts/record_default_generation.py
       - etiss
       - etiss_riscv_examples
       - M2-ISA-R
@@ -240,7 +241,7 @@ jobs:
           cache-name: cache-etiss-patch
         with:
           path: ${{ github.workspace }}/etiss.patch
-          key: etiss-patch-default-v2-${{ hashFiles('scripts/prepare_etiss_arch.py') }}-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
+          key: etiss-patch-default-v3-${{ hashFiles('scripts/prepare_etiss_arch.py', 'scripts/record_default_generation.py') }}-${{ matrix.ubuntu-version }}-${{ needs.check.outputs.etiss_ref
             }}-${{ needs.check.outputs.m2isar_ref }}-${{ needs.check.outputs.cdsl_ref
             }}-${{ matrix.config.ETISS_ARCH }}
       - name: Check ETISS Patch Cache Hit/Miss
@@ -259,11 +260,13 @@ jobs:
           cp -r etiss_arch_riscv/gen_output/${{ env.ETISS_TOP }}/${{ matrix.config.ETISS_ARCH }}/ etiss/ArchImpl/  # TODO: generalize!
           python -m pip install clang-format==21.1.8
           python scripts/prepare_etiss_arch.py etiss/ArchImpl/${{ matrix.config.ETISS_ARCH }}
+          python scripts/record_default_generation.py ${{ matrix.config.ETISS_ARCH }} --top "$ETISS_TOP" --fill-mode "$ETISS_FILL_MODE" --gdb-xml-descr "$GDB_XML_DESCR"
           cd etiss
           if [[ "$ETISS_FILL_MODE" == "empty" ]]
           then
               git restore ArchImpl/${{ matrix.config.ETISS_ARCH }}/${{ matrix.config.ETISS_ARCH }}ArchSpecificImp.cpp
           fi
+          git add -N ArchImpl/${{ matrix.config.ETISS_ARCH }}/generation.json
           git diff > ${{ github.workspace }}/etiss.patch
           cd -
       - name: Re-apply Cached ETISS Patch
