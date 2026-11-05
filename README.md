@@ -1,5 +1,10 @@
 # seal5_etiss_test_env
 
+The [48-bit instruction workflow](.github/workflows/48bit.yml) generates,
+builds, and tests `RV32IMACFDK` and `RV64IMACFDK`, then proposes updates in
+`etiss-arch-plugins`. See [the flow documentation](docs/48bit.md) for source
+pins, tests, and dispatch events.
+
 The [Core-V workflow](.github/workflows/xcorev.yml) generates the
 `RV32IMACFDXCoreV` ETISS plugin on relevant pushes and pull requests,
 upstream repository dispatches, and through **Run workflow**. There is no

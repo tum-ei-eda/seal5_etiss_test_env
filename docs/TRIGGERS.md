@@ -14,6 +14,7 @@ on:
 In the following the currently used triggers and their source repository are listed:
 
 - `cdsl-event` (https://github.com/tum-ei-eda/etiss_arch_riscv)
+- `48bit-cdsl-event` (https://github.com/PhilippvK/48bit-riscv-flow), consumed by the [48-bit flow](48bit.md)
 - `etiss-event` (https://github.com/tum-ei-eda/etiss)
 - `m2isar-event` (https://github.com/tum-ei-eda/M2-ISA-R)
 - `examples-event` (https://github.com/tum-ei-eda/etiss_riscv_examples)

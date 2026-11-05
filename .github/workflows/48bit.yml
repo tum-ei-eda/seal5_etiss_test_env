@@ -1,0 +1,252 @@
+name: Generate 48-bit RISC-V ETISS plugins
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [48bit-cdsl-event, cdsl-event, m2isar-event, etiss-event, examples-event]
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/48bit.yml
+      - .github/actions/build-etiss/**
+      - .github/actions/setup-gnu/**
+      - .github/actions/build-examples/**
+      - .github/actions/run-examples/**
+      - scripts/json_metrics2markdown.sh
+      - scripts/generate_48bit.py
+      - scripts/prepare_etiss_arch.py
+      - scripts/update_48bit_refs.py
+      - .gitmodules
+      - riscv-48bit-flow
+      - etiss_arch_riscv
+      - tests/48bit/**
+      - scripts/test_48bit.py
+      - M2-ISA-R
+      - etiss
+      - etiss-arch-plugins
+      - etiss_riscv_examples
+  pull_request:
+    paths:
+      - .github/workflows/48bit.yml
+      - .github/actions/build-etiss/**
+      - .github/actions/setup-gnu/**
+      - .github/actions/build-examples/**
+      - .github/actions/run-examples/**
+      - scripts/json_metrics2markdown.sh
+      - scripts/generate_48bit.py
+      - scripts/prepare_etiss_arch.py
+      - scripts/update_48bit_refs.py
+      - .gitmodules
+      - riscv-48bit-flow
+      - etiss_arch_riscv
+      - tests/48bit/**
+      - scripts/test_48bit.py
+      - M2-ISA-R
+      - etiss
+      - etiss-arch-plugins
+      - etiss_riscv_examples
+
+permissions:
+  contents: read
+
+env:
+  PROGS: hello_world,dhry,example_cpp
+
+concurrency:
+  group: 48bit-${{ github.ref }}-${{ github.event_name }}-${{ github.event.client_payload.from }}-${{ github.event.client_payload.ref }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {xlen: '32', arch: rv32imafdc, abi: ilp32d, cpu: RV32IMACFDK}
+          - {xlen: '64', arch: rv64imafdc, abi: lp64d, cpu: RV64IMACFDK}
+    env:
+      RISCV_ARCH: ${{ matrix.arch }}
+      RISCV_ABI: ${{ matrix.abi }}
+      ETISS_ARCH: ${{ matrix.cpu }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Initialize generation and simulator sources
+        run: git submodule update --init --recursive M2-ISA-R etiss etiss_arch_riscv etiss_riscv_examples
+      - name: Initialize pinned 48-bit reference
+        run: git submodule update --init riscv-48bit-flow
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.10'
+      - name: Apply upstream source revision
+        if: github.event_name == 'repository_dispatch'
+        id: refs
+        run: python scripts/update_48bit_refs.py
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build libboost-system-dev libboost-filesystem-dev libboost-program-options-dev clang-format-14 jq
+          python -m pip install -e ./M2-ISA-R
+      - name: Generate 48-bit RISC-V plugin
+        run: |
+          python scripts/generate_48bit.py --xlen ${{ matrix.xlen }} --work "$RUNNER_TEMP/48bit"
+          python scripts/prepare_etiss_arch.py "$RUNNER_TEMP/48bit/output/${{ matrix.cpu }}" --formatter clang-format-14
+      - name: Include generated plugin in ETISS
+        run: |
+          ln -s "$RUNNER_TEMP/48bit/output/${{ matrix.cpu }}" etiss/PluginImpl/${{ matrix.cpu }}
+      - name: Build and install ETISS with the generated plugin
+        uses: ./.github/actions/build-etiss
+        with:
+          build-dir: ${{ runner.temp }}/etiss-build
+          install-dir: ${{ runner.temp }}/etiss-install
+          build-type: Release
+          jobs: '2'
+          llvm-jit: 'OFF'
+          tcc-jit: 'OFF'
+      - name: Cache GNU multilib toolchain
+        id: gcc
+        uses: actions/cache@v6
+        with:
+          path: ${{ runner.temp }}/riscv-gcc
+          key: 48bit-gnu-2024.09.03-ubuntu2204-multilib-default-v1
+      - name: Download GNU multilib toolchain
+        if: steps.gcc.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-gnu
+        with:
+          install-dir: ${{ runner.temp }}/riscv-gcc
+          version: 2024.09.03
+          variant: multilib_default
+          os: ubuntu-22.04
+          name: riscv64-unknown-elf
+          enable-summary: 'true'
+      - name: Build 48-bit RISC-V examples
+        uses: ./.github/actions/build-examples
+        with:
+          examples-dir: etiss_riscv_examples
+          toolchain-file: cmake/riscv-gcc-toolchain.cmake
+          gnu-dir: ${{ runner.temp }}/riscv-gcc
+          gnu-name: riscv64-unknown-elf
+          toolchain: gcc
+          build-type: Release
+          xlen: ${{ matrix.xlen }}
+          arch: ${{ env.RISCV_ARCH }}
+          abi: ${{ env.RISCV_ABI }}
+          progs: ${{ env.PROGS }}
+          enable-summary: 'true'
+      - name: Record ETISS revision
+        id: etiss
+        run: echo "ref=$(git -C etiss rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Run 48-bit RISC-V examples
+        uses: ./.github/actions/run-examples
+        with:
+          examples-dir: etiss_riscv_examples
+          etiss-install-dir: ${{ runner.temp }}/etiss-install
+          progs: ${{ env.PROGS }}
+          etiss-arch: ${{ env.ETISS_ARCH }}
+          env_ref: ${{ github.sha }}
+          etiss_ref: ${{ steps.etiss.outputs.ref }}
+          arch: ${{ env.RISCV_ARCH }}
+          abi: ${{ env.RISCV_ABI }}
+          jit: GCC
+          toolchain: gcc
+          enable-summary: 'true'
+      - name: Test 48-bit instruction execution
+        run: |
+          python scripts/test_48bit.py --gcc "$RUNNER_TEMP/riscv-gcc/bin/riscv64-unknown-elf-gcc" --examples etiss_riscv_examples --etiss "$RUNNER_TEMP/etiss-install" --work "$RUNNER_TEMP/48bit-regression" --arch "$RISCV_ARCH" --abi "$RISCV_ABI" --cpu "$ETISS_ARCH"
+      - name: Upload example logs and metrics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: 48bit-examples-${{ matrix.xlen }}
+          path: |
+            etiss_riscv_examples/etiss_sw_build_out.txt
+            etiss_sw_run_out.txt
+            combined_stats.json
+            combined_stats.md
+            ${{ runner.temp }}/48bit-regression/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: 48bit-etiss-${{ matrix.xlen }}
+          path: ${{ runner.temp }}/48bit/output/
+          if-no-files-found: error
+
+  update:
+    needs: generate
+    if: github.event_name != 'pull_request' && github.event.client_payload.is_pr != 'true' && github.event.client_payload.is_pr != true
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check publication credentials
+        id: credentials
+        env:
+          TOKEN: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+        run: |
+          if [[ -n "$TOKEN" ]]; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Plugin artifact is available. Set SEAL5_ACCESS_TOKEN with contents and pull-request write access to tum-ei-eda/etiss-arch-plugins to enable update PRs.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.credentials.outputs.available == 'true' && github.event_name == 'repository_dispatch'
+        with:
+          persist-credentials: false
+          submodules: false
+      - name: Apply validated upstream source revision
+        if: steps.credentials.outputs.available == 'true' && github.event_name == 'repository_dispatch'
+        id: refs
+        run: |
+          git submodule update --init M2-ISA-R etiss etiss_arch_riscv etiss_riscv_examples riscv-48bit-flow
+          python scripts/update_48bit_refs.py
+      - name: Propose validated source revision
+        if: steps.credentials.outputs.available == 'true' && github.event_name == 'repository_dispatch'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          branch: pr_update_48bit_${{ steps.refs.outputs.source }}
+          commit-message: Update 48-bit RISC-V flow source revision
+          title: Update 48-bit RISC-V flow source (${{ steps.refs.outputs.source }})
+          body: Validated by 48-bit RISC-V ETISS generation, compilation, and example execution.
+          add-paths: |
+            riscv-48bit-flow
+            etiss_arch_riscv
+            M2-ISA-R
+            etiss
+            etiss_riscv_examples
+      - uses: actions/checkout@v7
+        if: steps.credentials.outputs.available == 'true'
+        with:
+          repository: tum-ei-eda/etiss-arch-plugins
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          persist-credentials: false
+          path: plugins
+      - uses: actions/download-artifact@v8
+        if: steps.credentials.outputs.available == 'true'
+        with:
+          pattern: 48bit-etiss-*
+          merge-multiple: true
+          path: generated
+      - name: Update generated files
+        if: steps.credentials.outputs.available == 'true'
+        run: |
+          for arch in RV32IMACFDK RV64IMACFDK; do
+            test -s "generated/$arch/generation.json"
+            mkdir -p "plugins/$arch"
+            rsync -a --delete "generated/$arch/" "plugins/$arch/"
+          done
+      - uses: peter-evans/create-pull-request@v6
+        if: steps.credentials.outputs.available == 'true'
+        with:
+          path: plugins
+          token: ${{ secrets.SEAL5_ACCESS_TOKEN }}
+          branch: auto-update-48bit
+          commit-message: Regenerate 48-bit RISC-V ETISS plugins
+          title: Regenerate 48-bit RISC-V ETISS plugins
+          body: |
+            Regenerate RV32IMACFDK and RV64IMACFDK from the pinned 48-bit reference extension and RISC-V base descriptions.
+            Source revisions are recorded in generation.json. The generated plugin was compiled with ETISS and used to run the 48-bit RISC-V examples before publication.
+            Uses upstream ETISS 48-bit fetch support; the plugins enforce the required instruction word width during compilation.
+          add-paths: |
+            RV32IMACFDK
+            RV64IMACFDK

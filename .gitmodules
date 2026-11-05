@@ -31,3 +31,6 @@
 [submodule "CoreV_ISA_CoreDSL"]
 	path = CoreV_ISA_CoreDSL
 	url = https://github.com/tum-ei-eda/CoreV_ISA_CoreDSL.git
+[submodule "riscv-48bit-flow"]
+	path = riscv-48bit-flow
+	url = https://github.com/PhilippvK/48bit-riscv-flow.git
