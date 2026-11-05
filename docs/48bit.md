@@ -34,7 +34,7 @@ retained as supplied; the regression makes no claim to validate those
 unimplemented operations. This experimental `K` is the reference's naming,
 not the standardized RISC-V cryptography extension.
 
-The ordinary GNU multilib toolchain uses `rv32imafdc`/`ilp32d` and
+The ordinary GNU multilib toolchain uses `rv32imafc`/`ilp32f` and
 `rv64imafdc`/`lp64d`. The regression emits 48-bit instructions as raw
 halfwords, so a custom compiler is unnecessary. It checks immediate loads,
 signed 24-bit addition, modular wraparound, unsigned AND immediates, writes
@@ -42,6 +42,9 @@ to `x0`, and mixed 16/32/48-bit instruction streams. RV64 additionally checks
 values above 32 bits and zero-extension of the 32-bit immediate load.
 The runner requires an explicit `48-bit regression: PASS` output, since a
 successful simulator process alone does not prove guest success.
+The RV32 flags match the default flow because the 2024.09.03 multilib archive
+does not supply RV32 double-float ABI libraries. The generated CPU still
+includes the D extension. CI checks runtime selection before compiling examples.
 
 The workflow runs on relevant pushes/PRs, manual dispatch, and repository
 dispatch; it has no scheduled trigger. Supported dispatch sources are:

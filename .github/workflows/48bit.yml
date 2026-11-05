@@ -62,7 +62,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {xlen: '32', arch: rv32imafdc, abi: ilp32d, cpu: RV32IMACFDK}
+          # The default multilib archive has RV32 single-float runtimes, not ilp32d.
+          - {xlen: '32', arch: rv32imafc, abi: ilp32f, cpu: RV32IMACFDK}
           - {xlen: '64', arch: rv64imafdc, abi: lp64d, cpu: RV64IMACFDK}
     env:
       RISCV_ARCH: ${{ matrix.arch }}
@@ -122,6 +123,16 @@ jobs:
           os: ubuntu-22.04
           name: riscv64-unknown-elf
           enable-summary: 'true'
+      - name: Check GNU runtime selection
+        run: |
+          gcc="$RUNNER_TEMP/riscv-gcc/bin/riscv64-unknown-elf-gcc"
+          "$gcc" -print-multi-lib
+          multilib=$("$gcc" -march="$RISCV_ARCH" -mabi="$RISCV_ABI" -print-multi-directory)
+          echo "Selected runtime: $multilib"
+          if [[ "$RISCV_ARCH" == rv32* && "$multilib" == '.' ]]; then
+            echo 'RV32 flags selected the default RV64 runtime' >&2
+            exit 1
+          fi
       - name: Build 48-bit RISC-V examples
         uses: ./.github/actions/build-examples
         with:
