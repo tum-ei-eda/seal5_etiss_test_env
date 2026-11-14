@@ -3,7 +3,8 @@ name: Generate Core-V ETISS plugin
 on:
   workflow_dispatch:
   repository_dispatch:
-    types: [xcorev-cdsl-event, m2isar-event, etiss-event, examples-event]
+    # types: [xcorev-cdsl-event, m2isar-event, etiss-event, examples-event]
+    types: [xcorev-cdsl-event]
   push:
     branches: [main]
     paths:
