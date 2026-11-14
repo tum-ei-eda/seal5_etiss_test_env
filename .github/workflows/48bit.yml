@@ -3,7 +3,7 @@ name: Generate 48-bit RISC-V ETISS plugins
 on:
   workflow_dispatch:
   repository_dispatch:
-    types: [48bit-cdsl-event, cdsl-event, m2isar-event, etiss-event, examples-event]
+    types: [48bit-cdsl-event]
   push:
     branches: [main]
     paths:
